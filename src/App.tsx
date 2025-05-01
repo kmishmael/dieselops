@@ -1,12 +1,12 @@
 //import DieselPowerPlantSimulator from './Similator'
-import DieselPowerPlantSimulator from './Simulator2'
+import DieselPowerPlantSimulation from './Simulator3'
 import './App.css'
 
 function App() {
 
   return (
     <>
-    <DieselPowerPlantSimulator />
+    <DieselPowerPlantSimulation />
   
     </>
   )

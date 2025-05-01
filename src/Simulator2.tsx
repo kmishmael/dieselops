@@ -881,4 +881,865 @@ export default function DieselPowerPlantSimulation() {
       </div>
     );
   };
+
+  // Main render function
+  return (
+    <div className="flex flex-col h-screen bg-gray-100">
+      {/* Header area with title and main controls */}
+      <header className="bg-gradient-to-r from-blue-800 to-indigo-900 text-white p-4 shadow-lg">
+        <div className="container mx-auto flex flex-wrap justify-between items-center">
+          <h1 className="text-2xl font-bold flex items-center">
+            <Zap className="mr-2" />
+            Diesel Power Plant Simulator
+          </h1>
+          
+          <div className="flex space-x-2">
+            <select
+              value={simulationSpeed}
+              onChange={(e) => changeSimulationSpeed(parseFloat(e.target.value))}
+              className="bg-blue-900 text-white px-2 py-1 rounded border border-blue-700"
+            >
+              <option value="0.1">0.1x Speed</option>
+              <option value="0.5">0.5x Speed</option>
+              <option value="1">1x Speed</option>
+              <option value="2">2x Speed</option>
+              <option value="5">5x Speed</option>
+            </select>
+            
+            <button 
+              onClick={resetSimulation} 
+              className="bg-blue-700 hover:bg-blue-600 text-white px-3 py-1 rounded flex items-center"
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              Reset
+            </button>
+            
+            <button 
+              onClick={emergencyStop}
+              className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded flex items-center"
+            >
+              <AlertTriangle className="w-4 h-4 mr-1" />
+              E-Stop
+            </button>
+          </div>
+        </div>
+      </header>
+      
+      {/* Navigation tabs */}
+      <div className="bg-gray-200 border-b border-gray-300">
+        <div className="container mx-auto">
+          <div className="flex">
+            <button 
+              className={`px-4 py-2 font-medium ${activeTab === 'main' ? 'bg-white border-t-2 border-blue-500' : 'hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('main')}
+            >
+              Main Dashboard
+            </button>
+            <button 
+              className={`px-4 py-2 font-medium ${activeTab === 'controls' ? 'bg-white border-t-2 border-blue-500' : 'hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('controls')}
+            >
+              System Controls
+            </button>
+            <button 
+              className={`px-4 py-2 font-medium ${activeTab === 'trends' ? 'bg-white border-t-2 border-blue-500' : 'hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('trends')}
+            >
+              Trend Analysis
+            </button>
+            <button 
+              className={`px-4 py-2 font-medium ${activeTab === 'logs' ? 'bg-white border-t-2 border-blue-500' : 'hover:bg-gray-100'}`}
+              onClick={() => setActiveTab('logs')}
+            >
+              System Logs
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main content area */}
+      <main className="flex-grow overflow-auto">
+        <div className="container mx-auto p-4">
+          {/* Main Dashboard Tab */}
+          {activeTab === 'main' && (
+            <div className="grid grid-cols-12 gap-4">
+              {/* Engine status card */}
+              <div className="col-span-12 lg:col-span-4">
+                <div className="bg-white rounded-lg shadow p-4 h-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-bold text-gray-800">Engine Status</h2>
+                    <div className={`px-2 py-1 rounded text-sm font-semibold ${
+                      engineState === 'running' ? 'bg-green-100 text-green-800' : 
+                      engineState === 'starting' ? 'bg-blue-100 text-blue-800' :
+                      engineState === 'stopping' ? 'bg-yellow-100 text-yellow-800' :
+                      engineState === 'fault' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {engineState.toUpperCase()}
+                    </div>
+                  </div>
+                  
+                  {/* Engine animation or diagram */}
+                  <div className="bg-gray-100 rounded-lg h-40 mb-4 flex justify-center items-center relative overflow-hidden">
+                    {/* Engine visualization */}
+                    <div className="engine-block w-32 h-20 bg-gray-700 rounded relative">
+                      {/* Piston animation */}
+                      <div 
+                        className="absolute bg-gray-500 w-8 h-12 rounded"
+                        style={{
+                          left: '12px',
+                          top: `${4 + Math.sin(simulationTime * 10 * (engineSpeed/1000)) * 8}px`,
+                          transition: 'top 0.1s ease-in-out',
+                          display: engineSpeed > 0 ? 'block' : 'none'
+                        }}
+                      ></div>
+                      
+                      {/* Flywheel animation */}
+                      <div 
+                        className="absolute w-16 h-16 bg-gray-600 rounded-full right-2 top-2"
+                        style={{
+                          transform: `rotate(${simulationTime * 30 * (engineSpeed/500)}deg)`,
+                          transition: 'transform 0.1s linear'
+                        }}
+                      >
+                        <div className="absolute w-14 h-1 bg-gray-800 left-1 top-8"></div>
+                      </div>
+                      
+                      {/* Exhaust animation */}
+                      {engineState === 'running' && (
+                        <div className="absolute -top-8 left-6">
+                          {Array.from({ length: 3 }).map((_, i) => (
+                            <div 
+                              key={i} 
+                              className="absolute bg-gray-300 rounded-full opacity-40"
+                              style={{
+                                width: `${6 - i * 1.5}px`,
+                                height: `${6 - i * 1.5}px`,
+                                top: `${i * -8}px`,
+                                animation: `float 2s infinite ${i * 0.5}s`
+                              }}
+                            ></div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Status indicators */}
+                    <div className="absolute bottom-2 right-2 flex space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${sparkPlugs ? 'bg-yellow-400' : 'bg-gray-400'}`}></div>
+                      <div className={`w-3 h-3 rounded-full ${fuelPumpState ? 'bg-blue-400' : 'bg-gray-400'}`}></div>
+                    </div>
+                  </div>
+                  
+                  {/* Primary engine metrics */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">Engine Speed</div>
+                      <div className="text-2xl font-bold text-gray-800">{engineSpeed.toFixed(0)} <span className="text-sm font-normal">RPM</span></div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div 
+                          className={`h-2 rounded-full ${engineSpeed > 1700 ? 'bg-red-500' : engineSpeed > 1400 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          style={{ width: `${(engineSpeed / 2000) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">Temperature</div>
+                      <div className="text-2xl font-bold text-gray-800">{temperature.toFixed(1)} <span className="text-sm font-normal">°C</span></div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div 
+                          className={`h-2 rounded-full ${temperature > 95 ? 'bg-red-500' : temperature > 85 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          style={{ width: `${((temperature - 25) / 100) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Secondary engine metrics */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-xs text-gray-500">Oil Pressure</div>
+                      <div className="font-semibold">{oilPressure.toFixed(1)} bar</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-xs text-gray-500">Exhaust Temp</div>
+                      <div className="font-semibold">{exhaustTemp.toFixed(0)} °C</div>
+                    </div>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="text-xs text-gray-500">Vibration</div>
+                      <div className="font-semibold">{vibration.toFixed(1)} mm/s</div>
+                    </div>
+                  </div>
+                  
+                  {/* Engine controls */}
+                  <div className="mt-4 flex space-x-2">
+                    <button
+                      onClick={startEngine}
+                      disabled={engineState !== 'idle' || !preStartComplete}
+                      className={`flex-1 py-2 px-3 rounded-md flex justify-center items-center font-medium
+                        ${engineState === 'idle' && preStartComplete ? 
+                          'bg-green-500 hover:bg-green-600 text-white' : 
+                          'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                    >
+                      Start Engine
+                    </button>
+                    
+                    <button
+                      onClick={stopEngine}
+                      disabled={engineState !== 'running'}
+                      className={`flex-1 py-2 px-3 rounded-md flex justify-center items-center font-medium
+                        ${engineState === 'running' ? 
+                          'bg-red-500 hover:bg-red-600 text-white' : 
+                          'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                    >
+                      Stop Engine
+                    </button>
+                  </div>
+                  
+                  {/* Pre-start checklist if engine is idle */}
+                  {engineState === 'idle' && (
+                    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <h3 className="text-sm font-medium text-blue-800 mb-2">Pre-Start Checklist</h3>
+                      <div className="space-y-1">
+                        <label className="flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={preStartItems.fuelCheck} 
+                            onChange={() => togglePreStartItem('fuelCheck')}
+                            className="mr-2"
+                          />
+                          Fuel level check
+                        </label>
+                        <label className="flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={preStartItems.oilCheck} 
+                            onChange={() => togglePreStartItem('oilCheck')}
+                            className="mr-2"
+                          />
+                          Oil level check
+                        </label>
+                        <label className="flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={preStartItems.coolantCheck} 
+                            onChange={() => togglePreStartItem('coolantCheck')}
+                            className="mr-2"
+                          />
+                          Coolant level check
+                        </label>
+                        <label className="flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={preStartItems.batteryCheck} 
+                            onChange={() => togglePreStartItem('batteryCheck')}
+                            className="mr-2"
+                          />
+                          Battery check
+                        </label>
+                        <label className="flex items-center text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={preStartItems.airFilterCheck} 
+                            onChange={() => togglePreStartItem('airFilterCheck')}
+                            className="mr-2"
+                          />
+                          Air filter check
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Status message if engine is in other state */}
+                  {engineState === 'fault' && (
+                    <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-100">
+                      <div className="flex items-center text-red-800">
+                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        <span>Fault detected. Clear faults to restart.</span>
+                      </div>
+                      <button
+                        onClick={clearFaults}
+                        className="mt-2 w-full py-1 px-3 bg-red-100 hover:bg-red-200 text-red-800 rounded text-sm font-medium"
+                      >
+                        Clear Faults
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Power generation card */}
+              <div className="col-span-12 lg:col-span-4">
+                <div className="bg-white rounded-lg shadow p-4 h-full">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">Power Generation</h2>
+                  
+                  {/* Power chart */}
+                  <div className="h-48 bg-gray-50 rounded-lg mb-4" ref={powerChartRef}></div>
+                  
+                  {/* Primary power metrics */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">Power Output</div>
+                      <div className="text-2xl font-bold text-blue-600">{power} <span className="text-sm font-normal">kW</span></div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div 
+                          className="h-2 rounded-full bg-blue-500"
+                          style={{ width: `${(power / MAX_POWER) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">Generator Load</div>
+                      <div className="text-2xl font-bold text-gray-800">{load.toFixed(0)} <span className="text-sm font-normal">%</span></div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                        <div 
+                          className={`h-2 rounded-full ${load > 90 ? 'bg-red-500' : load > 75 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          style={{ width: `${load}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Electrical parameters */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-blue-50 p-3 rounded">
+                      <div className="text-xs text-blue-800">Voltage</div>
+                      <div className="font-semibold text-blue-900">{voltage.toFixed(1)} V</div>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded">
+                      <div className="text-xs text-blue-800">Current</div>
+                      <div className="font-semibold text-blue-900">{current.toFixed(1)} A</div>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded">
+                      <div className="text-xs text-blue-800">Frequency</div>
+                      <div className="font-semibold text-blue-900">{frequency.toFixed(2)} Hz</div>
+                    </div>
+                  </div>
+                  
+                  {/* Power system interactive diagram */}
+                  <div className="mt-4">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Power System</h3>
+                    <div className="relative h-40 bg-gray-100 rounded-lg p-2">
+                      {/* Engine block */}
+                      <div 
+                        className="absolute left-4 top-12 w-20 h-16 bg-gray-700 rounded cursor-pointer hover:bg-gray-600"
+                        onClick={() => selectComponent('engine')}
+                      >
+                        <div className="text-xs text-center text-white mt-6">Engine</div>
+                      </div>
+                      
+                      {/* Connection shaft - animated based on engine speed */}
+                      <div className="absolute left-24 top-20 w-16 h-2 bg-gray-400">
+                        {engineSpeed > 0 && (
+                          <div className="absolute top-0 left-0 w-full h-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gray-600"
+                              style={{ 
+                                backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 4px, #374151 4px, #374151 8px)',
+                                animation: `moveStripes ${10/engineSpeed}s linear infinite`,
+                                width: '200%'
+                              }}
+                            ></div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Generator */}
+                      <div 
+                        className="absolute left-40 top-10 w-24 h-20 bg-blue-600 rounded cursor-pointer hover:bg-blue-500"
+                        onClick={() => selectComponent('generator')}
+                      >
+                        <div className="text-xs text-center text-white mt-8">Generator</div>
+                      </div>
+                      
+                      {/* Power lines */}
+                      <div className="absolute left-64 top-18 w-24 h-2 bg-yellow-400"></div>
+                      
+                      {/* Load/distribution */}
+                      <div 
+                        className="absolute right-4 top-10 w-20 h-20 bg-green-600 rounded cursor-pointer hover:bg-green-500"
+                        onClick={() => selectComponent('controlSystem')}
+                      >
+                        <div className="text-xs text-center text-white mt-8">Distribution</div>
+                      </div>
+                      
+                      {/* Active power indicator - pulsing when generating */}
+                      {power > 0 && (
+                        <div 
+                          className="absolute left-72 top-14 w-6 h-6 bg-yellow-300 rounded-full animate-pulse opacity-75"
+                        ></div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Efficiency and system monitoring */}
+              <div className="col-span-12 lg:col-span-4">
+                <div className="bg-white rounded-lg shadow p-4 h-full">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">System Monitoring</h2>
+                  
+                  {/* Efficiency metrics */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-sm text-gray-500">System Efficiency</div>
+                    <div className="text-xl font-bold">{efficiency}%</div>
+                  </div>
+                  
+                  <div className="w-full bg-gray-200 h-4 rounded-full mb-6">
+                    <div 
+                      className="h-4 rounded-full bg-gradient-to-r from-green-500 to-green-300 relative"
+                      style={{ width: `${efficiency}%` }}
+                    >
+                      <div 
+                        className="absolute -right-3 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-white rounded-full border-2 border-green-500 shadow-sm"
+                      ></div>
+                    </div>
+                  </div>
+                  
+                  {/* Key monitoring metrics grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="bg-gray-50 p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs text-gray-500">Fuel Consumption</div>
+                        <Fuel className="w-4 h-4 text-amber-500" />
+                      </div>
+                      <div className="font-semibold">{fuelConsumption.toFixed(1)} L/h</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs text-gray-500">Coolant Flow</div>
+                        <Droplets className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="font-semibold">{coolantFlow.toFixed(0)}%</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs text-gray-500">Ventilation</div>
+                        <Wind className="w-4 h-4 text-teal-500" />
+                      </div>
+                      <div className="font-semibold">{ventilation.toFixed(0)}%</div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <div className="text-xs text-gray-500">Battery</div>
+                        <div className={`w-4 h-4 rounded-sm ${batteryVoltage > 24 ? 'bg-green-500' : batteryVoltage > 22 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                      </div>
+                      <div className="font-semibold">{batteryVoltage.toFixed(1)} V</div>
+                    </div>
+                  </div>
+                  
+                  {/* Emissions monitoring */}
+                  <div className="mb-4">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Emissions</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 mb-1">CO₂</div>
+                        <div className="text-sm font-medium">{emissions.co2} kg/h</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 mb-1">NOₓ</div>
+                        <div className="text-sm font-medium">{emissions.nox} g/h</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 mb-1">PM</div>
+                        <div className="text-sm font-medium">{emissions.particulates} g/h</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Alarm status */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">Alarms & Status</h3>
+                    <div className={`p-3 rounded-lg ${
+                      alarms.length > 0 ? 'bg-red-50' : 'bg-green-50'
+                    }`}>
+                      {alarms.length === 0 ? (
+                        <div className="flex items-center text-green-800">
+                          <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                          <span className="text-sm">All systems normal</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                          {alarms.map((alarm, index) => (
+                            <div key={index} className="flex items-center text-red-800">
+                              <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                              <span className="text-sm">{alarm}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Status messages and logs */}
+              <div className="col-span-12">
+                <div className="bg-white rounded-lg shadow p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-lg font-bold text-gray-800">System Status</h2>
+                    <div className="text-sm text-gray-500">Simulation Time: {simulationTime.toFixed(1)}s</div>
+                  </div>
+                  <div className="bg-gray-100 p-3 rounded-lg h-24 overflow-y-auto text-sm font-mono">
+                    {statusMessages.map((msg, index) => (
+                      <div key={index} className="pb-1">{msg}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Controls Tab */}
+          {activeTab === 'controls' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* System controls */}
+              <div className="bg-white rounded-lg shadow p-4 h-full">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">System Controls</h2>
+                
+                {/* Engine speed control */}
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700">Engine Speed (RPM)</label>
+                    <span className="text-sm">{engineSpeedTarget}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="800"
+                    max="1800"
+                    step="10"
+                    value={engineSpeedTarget}
+                    onChange={(e) => setEngineSpeedTarget(parseInt(e.target.value))}
+                    disabled={engineState !== 'running'}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>800</span>
+                    <span>1800</span>
+                  </div>
+                </div>
+                
+                {/* Load control */}
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700">Generator Load (%)</label>
+                    <span className="text-sm">{loadTarget}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={loadTarget}
+                    onChange={(e) => setLoadTarget(parseInt(e.target.value))}
+                    disabled={engineState !== 'running'}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Fuel flow control */}
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700">Fuel Flow Control (%)</label>
+                    <span className="text-sm">{fuelFlowTarget}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={fuelFlowTarget}
+                    onChange={(e) => setFuelFlowTarget(parseInt(e.target.value))}
+                    disabled={engineState !== 'running'}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Coolant flow control */}
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700">Coolant Flow (%)</label>
+                    <span className="text-sm">{coolantFlowTarget}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="20"
+                    max="100"
+                    value={coolantFlowTarget}
+                    onChange={(e) => setCoolantFlowTarget(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>20%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+                
+                {/* Ventilation control */}
+                <div className="mb-4">
+                  <div className="flex justify-between mb-1">
+                    <label className="text-sm font-medium text-gray-700">Ventilation Rate (%)</label>
+                    <span className="text-sm">{ventilationTarget}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={ventilationTarget}
+                    onChange={(e) => setVentilationTarget(parseInt(e.target.value))}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>0%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Component details */}
+              <div className="bg-white rounded-lg shadow p-4 h-full">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Component Selector</h2>
+                
+                {/* Interactive system components */}
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  <button
+                    onClick={() => selectComponent('engine')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Gauge className="w-6 h-6 text-gray-700 mb-1" />
+                    <span className="text-sm">Engine</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => selectComponent('generator')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Zap className="w-6 h-6 text-blue-600 mb-1" />
+                    <span className="text-sm">Generator</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => selectComponent('fuelSystem')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Fuel className="w-6 h-6 text-yellow-600 mb-1" />
+                    <span className="text-sm">Fuel System</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => selectComponent('coolingSystem')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Thermometer className="w-6 h-6 text-blue-600 mb-1" />
+                    <span className="text-sm">Cooling</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => selectComponent('ventilationSystem')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Wind className="w-6 h-6 text-teal-600 mb-1" />
+                    <span className="text-sm">Ventilation</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => selectComponent('controlSystem')}
+                    className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg flex flex-col items-center justify-center"
+                  >
+                    <Settings className="w-6 h-6 text-indigo-600 mb-1" />
+                    <span className="text-sm">Controls</span>
+                  </button>
+                </div>
+                
+                {/* Component details display */}
+                {showDetails ? (
+                  renderComponentDetails()
+                ) : (
+                  <div className="bg-gray-100 p-6 rounded-lg text-center text-gray-500">
+                    <Info className="w-8 h-8 mx-auto mb-2" />
+                    <p>Select a component to view details</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Trend Analysis Tab */}
+          {activeTab === 'trends' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* RPM trend */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-2">Engine Speed Trend</h2>
+                <div className="h-64 bg-gray-50 rounded-lg" ref={rpmChartRef}></div>
+              </div>
+              
+              {/* Temperature trend */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-2">Temperature Trend</h2>
+                <div className="h-64 bg-gray-50 rounded-lg" ref={temperatureChartRef}></div>
+              </div>
+              
+              {/* Power vs Efficiency */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-2">Power vs Efficiency</h2>
+                <div className="h-64 bg-gray-50 rounded-lg">
+                  <div className="flex h-full items-center justify-center text-gray-400">
+                    Advanced chart visualization will render here
+                  </div>
+                </div>
+                <div className="flex justify-between mt-2 text-sm">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-1"></div>
+                    <span>Power</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                    <span>Efficiency</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Fuel consumption */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h2 className="text-lg font-bold text-gray-800 mb-2">Fuel Consumption Analysis</h2>
+                <div className="h-64 bg-gray-50 rounded-lg">
+                  <div className="flex h-full items-center justify-center text-gray-400">
+                    Fuel trend chart will render here
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* System Logs Tab */}
+          {activeTab === 'logs' && (
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-800">System Logs</h2>
+                <div className="space-x-2">
+                  <button className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-sm rounded">
+                    Export
+                  </button>
+                  <button 
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-sm rounded"
+                    onClick={() => setStatusMessages(['System logs cleared'])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              
+              <div className="border rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Timestamp
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Event
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {statusMessages.map((message, index) => {
+                      // Extract timestamp if message has one
+                      const parts = message.split(' - ');
+                      const timestamp = parts.length > 1 ? parts[0] : "—";
+                      const content = parts.length > 1 ? parts[1] : message;
+                      const isFault = content.includes('FAULT') || content.includes('EMERGENCY');
+                      const isWarning = content.includes('Warning') || content.includes('warning');
+                      
+                      return (
+                        <tr key={index}>
+                          <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
+                            {timestamp}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-sm text-gray-900">
+                            {content}
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                              ${isFault ? 'bg-red-100 text-red-800' : 
+                                isWarning ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}
+                            >
+                              {isFault ? 'Error' : isWarning ? 'Warning' : 'Info'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Fault codes section */}
+              {faultCodes.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="font-medium text-gray-700 mb-2">Active Fault Codes</h3>
+                  <div className="bg-red-50 rounded-lg p-3 border border-red-100">
+                    <ul className="list-disc pl-5 space-y-1">
+                      {faultCodes.map((code, index) => (
+                        <li key={index} className="text-sm text-red-800">
+                          <span className="font-mono">{code}</span> - {getFaultDescription(code)}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      onClick={clearFaults}
+                      className="mt-2 w-full py-1.5 bg-white text-red-700 border border-red-300 rounded text-sm font-medium hover:bg-red-50"
+                    >
+                      Reset Fault Codes
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+      
+      {/* Footer area */}
+      <footer className="bg-gray-800 text-gray-300 py-2 px-4 text-center text-sm">
+        Diesel Power Plant Simulator &copy; {new Date().getFullYear()} | Simulation Time: {simulationTime.toFixed(1)}s | Engine Status: {engineState.toUpperCase()}
+      </footer>
+      
+      {/* Global CSS for animations */}
+      <style jsx global>{`
+        @keyframes float {
+          0% { transform: translateY(0px); opacity: 0.8; }
+          100% { transform: translateY(-20px); opacity: 0; }
+        }
+        
+        @keyframes moveStripes {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-8px); }
+        }
+      `}</style>
+    </div>
+  );
+  
+  // Helper function to get fault descriptions
+  function getFaultDescription(code: string) {
+      const descriptions = {
+        'E001': 'Critical engine overheating',
+        'E002': 'Generator overload protection',
+        'E003': 'Insufficient cooling flow',
+        'E004': 'Engine overspeed protection',
+        'E005': 'Low oil pressure protection',
+        'E006': 'Excessive vibration detected',
+      };
+      
+      return descriptions[code as any] || 'Unknown fault';
+  }
 }
+
