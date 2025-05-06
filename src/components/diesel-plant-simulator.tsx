@@ -406,7 +406,7 @@ export default function DieselPlantSimulator() {
         const currentAlerts = [];
         if (newTemperature > 95)
           currentAlerts.push("Engine temperature critical!");
-        if (newEfficiency < 20) currentAlerts.push("Low efficiency warning");
+        if (newEfficiency < 5) currentAlerts.push("Low efficiency warning");
         if (maintenanceStatus < 30) currentAlerts.push("Maintenance required");
         if (newEmissions.nox > 80)
           currentAlerts.push("NOx emissions exceeding limits");
@@ -924,7 +924,7 @@ export default function DieselPlantSimulator() {
                 )}
             </div>
           </div>
-          
+
           <PowerOutputGraph
             powerData={powerHistory}
             temperatureData={temperatureHistory}
@@ -1075,20 +1075,95 @@ export default function DieselPlantSimulator() {
       </div>
 
       <Tabs defaultValue="engine" className="w-full">
-        <TabsList className="grid grid-cols-8 mb-4">
-          <TabsTrigger value="engine">Engine</TabsTrigger>
-          <TabsTrigger value="circuit">Circuit</TabsTrigger>
-          <TabsTrigger value="emissions">Emissions</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
-          <TabsTrigger value="parameters">Parameters</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
-          <TabsTrigger value="auto" className="flex items-center gap-1">
-            <Cpu className="h-3 w-3" />
-            Auto Control
+        <TabsList className="flex flex-wrap gap-1 mb-4 sm:gap-2">
+          <TabsTrigger
+            value="engine"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">Engine</span>
+            <span className="sm:hidden">
+              <Thermometer className="h-3.5 w-3.5 mx-auto" />
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="cascade" className="flex items-center gap-1">
-            <Layers className="h-3 w-3" />
-            Cascade
+
+          <TabsTrigger
+            value="circuit"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">Circuit</span>
+            <span className="sm:hidden">
+              <Zap className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="emissions"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">Emissions</span>
+            <span className="sm:hidden">
+              <Droplets className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="system"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">System</span>
+            <span className="sm:hidden">
+              <BarChart3 className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="parameters"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">Parameters</span>
+            <span className="sm:hidden">
+              <Activity className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="advanced"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">Advanced</span>
+            <span className="sm:hidden">
+              <Settings className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="auto"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">
+              <span className="flex items-center gap-1">
+                <Cpu className="h-3 w-3" />
+                Auto Control
+              </span>
+            </span>
+            <span className="sm:hidden">
+              <Cpu className="h-3.5 w-3.5 mx-auto" />
+            </span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="cascade"
+            className="flex-1 min-w-[80px] text-xs sm:text-sm"
+          >
+            <span className="hidden sm:inline">
+              <span className="flex items-center gap-1">
+                <Layers className="h-3 w-3" />
+                Cascade
+              </span>
+            </span>
+            <span className="sm:hidden">
+              <Layers className="h-3.5 w-3.5 mx-auto" />
+            </span>
           </TabsTrigger>
         </TabsList>
 
