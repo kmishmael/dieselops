@@ -689,7 +689,7 @@ export default function DieselPlantSimulator() {
         <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
           <div className="flex items-center gap-3">
             <Gauge className="h-7 w-7 text-neutral-800 dark:text-white transition-transform hover:rotate-12" />
-            <h1 className="text-2xl md:text-3xl font-bold text-neutral-800 tracking-tight dark:bg-gradient-to-r dark:from-foreground dark:to-amber-600 dark:dark:to-amber-500 dark:bg-clip-text dark:text-transparent">
+            <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-neutral-800 tracking-tight dark:bg-gradient-to-r dark:from-foreground dark:to-amber-600 dark:dark:to-amber-500 dark:bg-clip-text dark:text-transparent">
               Diesel Power Plant Simulator
             </h1>
           </div>
@@ -701,9 +701,7 @@ export default function DieselPlantSimulator() {
           </div>
         </div>
 
-        {/* Controls row - wraps responsively */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {/* Simulation control buttons */}
           <div className="flex items-center flex-wrap gap-2">
             <Button
               variant={running ? "destructive" : "default"}
@@ -745,7 +743,6 @@ export default function DieselPlantSimulator() {
             </div>
           </div>
 
-          {/* Speed control with slider */}
           <div className="flex items-center flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-grow min-w-[160px]">
               <Label
@@ -794,7 +791,6 @@ export default function DieselPlantSimulator() {
             </div>
           </div>
 
-          {/* Emergency mode toggle */}
           <div className="flex items-center justify-center md:justify-end gap-2">
             <div
               onClick={toggleEmergencyMode}
@@ -928,6 +924,7 @@ export default function DieselPlantSimulator() {
                 )}
             </div>
           </div>
+          
           <PowerOutputGraph
             powerData={powerHistory}
             temperatureData={temperatureHistory}
@@ -1325,13 +1322,13 @@ export default function DieselPlantSimulator() {
         </TabsContent>
       </Tabs>
 
-      <footer className="mt-6 text-center text-sm text-muted-foreground">
+      {/* <footer className="mt-6 text-center text-sm text-muted-foreground">
         <p>Diesel Power Plant Simulator - Electrical Engineering Project</p>
         <p className="text-xs mt-1">
           This simulation uses mathematical models to represent real-world
           physics and engineering principles.
         </p>
-      </footer>
+      </footer> */}
     </div>
   );
 }
