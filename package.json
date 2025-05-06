@@ -37,6 +37,7 @@
     "@radix-ui/react-tooltip": "^1.2.5",
     "@tailwindcss/vite": "^4.1.5",
     "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "d3": "^7.9.0",
     "embla-carousel-react": "^8.6.0",
@@ -64,6 +65,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^16.0.0",
+    "tw-animate-css": "^1.2.9",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.26.1",
     "vite": "^6.3.1"

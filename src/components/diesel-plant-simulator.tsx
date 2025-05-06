@@ -25,6 +25,8 @@ import {
   Settings,
   Cpu,
   Layers,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import EngineVisualization from "../components/engine-visualization";
 import PowerOutputGraph from "../components/power-output-graph";
@@ -682,80 +684,156 @@ export default function DieselPlantSimulator() {
 
   return (
     <div className="container mx-auto p-4 max-w-7xl">
-      <header className="mb-6">
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-3xl font-bold">Diesel Power Plant Simulator</h1>
-          <ThemeToggle />
+      <header className="mb-8 bg-card/80 backdrop-blur-md rounded-xl shadow-sm border border-border/30 p-4 z-10 hover:border-border/50">
+        {/* Top row with title and theme toggle */}
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+          <div className="flex items-center gap-3">
+            <Gauge className="h-7 w-7 text-neutral-800 dark:text-white transition-transform hover:rotate-12" />
+            <h1 className="text-2xl md:text-3xl font-bold text-neutral-800 tracking-tight dark:bg-gradient-to-r dark:from-foreground dark:to-amber-600 dark:dark:to-amber-500 dark:bg-clip-text dark:text-transparent">
+              Diesel Power Plant Simulator
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium bg-muted/80 px-3 py-1.5 rounded-lg border border-border/20 hidden md:block transition-colors">
+              Time: <span className="font-mono">{Math.floor(time)}s</span>
+            </span>
+            <ThemeToggle />
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                variant={running ? "destructive" : "default"}
-                size="sm"
-                onClick={() => setRunning(!running)}
+
+        {/* Controls row - wraps responsively */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Simulation control buttons */}
+          <div className="flex items-center flex-wrap gap-2">
+            <Button
+              variant={running ? "destructive" : "default"}
+              size="sm"
+              onClick={() => setRunning(!running)}
+              className={`flex-shrink-0 shadow-sm border transition-all duration-200 hover:shadow-md active:scale-[0.98] ${
+                running
+                  ? "border-red-700/80 dark:border-red-700/80 text-white hover:bg-red-800/90"
+                  : "border-border/50 hover:border-primary/50"
+              }`}
+            >
+              {running ? (
+                <>
+                  <Pause className="mr-1.5 h-4 w-4" />
+                  Pause
+                </>
+              ) : (
+                <>
+                  <Play className="mr-1.5 h-4 w-4" />
+                  Start
+                </>
+              )}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={resetSimulation}
+              className="flex-shrink-0 shadow-sm border border-border/60 transition-all duration-200 hover:bg-muted/60 hover:border-border active:scale-[0.98] hover:shadow"
+            >
+              <RotateCcw className="mr-1.5 h-4 w-4" />
+              Reset
+            </Button>
+
+            <div className="flex items-center gap-2 md:hidden">
+              <span className="text-xs font-medium bg-muted/80 px-2 py-1 rounded-md border border-border/20">
+                Time: <span className="font-mono">{Math.floor(time)}s</span>
+              </span>
+            </div>
+          </div>
+
+          {/* Speed control with slider */}
+          <div className="flex items-center flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-grow min-w-[160px]">
+              <Label
+                htmlFor="simulation-speed"
+                className="text-sm whitespace-nowrap"
               >
-                {running ? (
-                  <Pause className="mr-1 h-4 w-4" />
-                ) : (
-                  <Play className="mr-1 h-4 w-4" />
-                )}
-                {running ? "Pause" : "Start"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={resetSimulation}>
-                <RotateCcw className="mr-1 h-4 w-4" />
-                Reset
-              </Button>
+                Speed:
+              </Label>
+              <Slider
+                id="simulation-speed"
+                value={[simulationSpeed]}
+                min={0.1}
+                max={5}
+                step={0.1}
+                onValueChange={(value) => setSimulationSpeed(value[0])}
+                className="flex-grow"
+              />
+              <span className="text-xs font-medium bg-muted/80 px-2 py-1 rounded-md w-10 text-center border border-border/20">
+                {simulationSpeed.toFixed(1)}x
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="simulation-speed">Simulation Speed:</Label>
-              <div className="w-32">
-                <Slider
-                  id="simulation-speed"
-                  value={[simulationSpeed]}
-                  min={0.1}
-                  max={5}
-                  step={0.1}
-                  onValueChange={(value) => setSimulationSpeed(value[0])}
-                />
-              </div>
-              <span className="text-sm">{simulationSpeed.toFixed(1)}x</span>
-              <FastForward className="h-4 w-4" />
-            </div>
-            <div className="flex items-center gap-2 ml-4">
+
+            <div className="hidden md:flex items-center gap-1">
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() =>
                   setSimulationSpeed(Math.max(0.1, simulationSpeed / 2))
                 }
+                className="h-7 w-7 border border-border/60 shadow-sm transition-all duration-200 hover:bg-muted/60 hover:border-border active:scale-[0.98]"
+                title="Slower"
               >
-                Slower
+                <ChevronsLeft className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() =>
                   setSimulationSpeed(Math.min(10, simulationSpeed * 2))
                 }
+                className="h-7 w-7 border border-border/60 shadow-sm transition-all duration-200 hover:bg-muted/60 hover:border-border active:scale-[0.98]"
+                title="Faster"
               >
-                Faster
+                <ChevronsRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">Time: {Math.floor(time)}s</span>
-            <div className="flex items-center gap-2 ml-4">
+
+          {/* Emergency mode toggle */}
+          <div className="flex items-center justify-center md:justify-end gap-2">
+            <div
+              onClick={toggleEmergencyMode}
+              className={`group flex items-center gap-3 px-4 py-2 rounded-lg border shadow-sm transition duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                emergencyMode
+                  ? "bg-red-100/90 dark:bg-red-900/60 border-red-300/80 dark:border-red-800/80 hover:shadow-md"
+                  : "bg-muted/60 border-border/40 hover:border-border/70"
+              }`}
+            >
               <Switch
                 id="emergency-mode"
                 checked={emergencyMode}
                 onCheckedChange={toggleEmergencyMode}
+                className={`transition border ${
+                  emergencyMode
+                    ? "data-[state=checked]:bg-red-700 data-[state=checked]:border-red-700 dark:data-[state=checked]:bg-red-600 dark:data-[state=checked]:border-red-600"
+                    : ""
+                }`}
               />
+
               <Label
                 htmlFor="emergency-mode"
-                className="text-red-500 font-bold"
+                className="relative text-sm font-semibold pointer-events-none flex items-center gap-1.5 min-w-[120px]"
               >
-                Emergency Mode
+                <AlertTriangle
+                  className={`h-4 w-4 transition-all duration-200 ${
+                    emergencyMode
+                      ? "text-red-600 dark:text-red-300 opacity-100 animate-pulse"
+                      : "text-muted-foreground opacity-0 w-0 -ml-2"
+                  }`}
+                />
+                <span>
+                  Emergency Mode
+                  <span
+                    className={`absolute -right-2 -top-1 h-1.5 w-1.5 rounded-full bg-red-500 transition-opacity duration-200 ${
+                      emergencyMode ? "opacity-100 animate-ping" : "opacity-0"
+                    }`}
+                  ></span>
+                </span>
               </Label>
             </div>
           </div>
