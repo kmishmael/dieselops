@@ -1,170 +1,227 @@
-// Mathematical models for the diesel power plant simulation
 
-// Calculate power output based on input parameters
+const DESIGN_POWER_MW = 62; // Target electrical power output in MW
+const MAX_MECHANICAL_POWER_MW = 75; // Max engine shaft power (slightly higher than electrical)
+const NOMINAL_FUEL_CONSUMPTION_RATE_KGH_PER_MW = 200; // Approx kg/h per MW at good efficiency (used conceptually)
+const IDEAL_THERMAL_EFFICIENCY_PERCENT = 48; // Peak thermal efficiency
+const AMBIENT_TEMPERATURE_C = 25; // degrees C
+
+// Constants for Temperature Dynamics
+const THERMAL_MASS_CAPACITY = 1000; // Arbitrary value for temperature dynamics
+const COOLING_EFFECTIVENESS = 0.1; // How much cooling power affects temperature change rate
+const HEAT_GENERATION_PER_FUEL = 0.3; // How much fuel contributes to temperature rise (scaled)
+const HEAT_GENERATION_PER_LOAD = 0.1; // How much load contributes to temperature rise (scaled)
+const NATURAL_COOLING_RATE = 0.05; // How much heat is lost naturally (scaled)
+
+// Constants for Efficiency & Power Factors
+const GENERATOR_EFFICIENCY_BASE = 0.95; // Base generator efficiency
+const GENERATOR_EFFICIENCY_VARIATION = 0.05; // Variation based on excitation (0.95 to 1.0)
+const MAINTENANCE_POWER_FACTOR_BASE = 0.7; // Minimum power factor due to maintenance
+const MAINTENANCE_EFFICIENCY_FACTOR_BASE = 0.5; // Minimum efficiency factor due to maintenance
+
+// Constants for Realism Factors
+const STARTUP_DURATION_SECONDS = 10; // How long it takes to spool up at the start
+const RANDOM_NOISE_POWER_MW = 0.5; // Max random variation in power output (MW)
+const RANDOM_NOISE_TEMPERATURE_C = 0.2; // Max random variation in temperature (C/s rate)
+const RANDOM_NOISE_EFFICIENCY_PERCENT = 0.5; // Max random variation in efficiency (%)
+const RANDOM_NOISE_EMISSIONS_SCALED = 5; // Max random variation in emissions (scaled units)
+
+function addNoise(value: number, maxNoise: number): number {
+  // Generates a random number between -maxNoise and +maxNoise
+  return value + (Math.random() * 2 - 1) * maxNoise;
+}
+
+/**
+ * Calculates the current power output of the engine and generator.
+ * Incorporates startup ramp-up and random noise.
+ * @param fuelInjectionRate - Fuel rate (0-100 scale)
+ * @param load - Electrical load demand (0-100 scale)
+ * @param engineTemperature - Engine temperature (degrees C)
+ * @param generatorExcitation - Generator excitation (0-100 scale)
+ * @param maintenanceStatus - Maintenance status (0-100 scale)
+ * @param timeSinceStart - Time elapsed since the simulation started (seconds)
+ * @returns Power output in MW
+ */
 export function calculatePowerOutput(
   fuelInjectionRate: number,
   load: number,
-  temperature: number,
+  engineTemperature: number,
   generatorExcitation: number,
   maintenanceStatus: number,
-  deltaTime = 0.016, // Add time parameter with default value
+  timeSinceStart: number // Added parameter for startup dynamics
 ): number {
-  // Base power calculation with enhanced impact
-  let power = (fuelInjectionRate / 100) * (load / 100) * 10 // Max 10 MW
+  // --- Startup Ramp-up ---
+  // Engine power capability ramps up during the initial startup phase.
+  const startupFactor = Math.min(1, timeSinceStart / STARTUP_DURATION_SECONDS); // Goes from 0 to 1 during startup duration
 
-  // Temperature efficiency factor - more pronounced effect
-  // Optimal temperature range is 70-85°C
-  let tempFactor = 1.0
-  if (temperature < 60) {
-    tempFactor = 0.7 + (temperature - 40) / 100
-  } else if (temperature > 90) {
-    tempFactor = 1.0 - (temperature - 90) / 40 // Steeper decline
-  }
+  // --- Mechanical Power Available ---
+  const fuelFactor = fuelInjectionRate / 100;
+  const maintenanceFactor = maintenanceStatus / 100 * (1 - MAINTENANCE_POWER_FACTOR_BASE) + MAINTENANCE_POWER_FACTOR_BASE;
+  const availableMechanicalPower = fuelFactor * MAX_MECHANICAL_POWER_MW * maintenanceFactor * startupFactor; // Apply startup factor here
 
-  // Generator excitation factor - more pronounced effect
-  // Optimal excitation is around 70-90%
-  let excitationFactor = 0.4 + (generatorExcitation / 100) * 0.6 // More range
-  if (generatorExcitation > 90) {
-    excitationFactor = 1.0 - (generatorExcitation - 90) / 150
-  }
+  // --- Generator Conversion ---
+  const excitationFactor = generatorExcitation / 100 * GENERATOR_EFFICIENCY_VARIATION + GENERATOR_EFFICIENCY_BASE;
+  const electricalOutputCapability = availableMechanicalPower * excitationFactor;
 
-  // Maintenance factor - more pronounced effect
-  // Lower maintenance status reduces power output more significantly
-  const maintenanceFactor = 0.6 + (maintenanceStatus / 100) * 0.4 // More impact
+  // --- Load Demand ---
+  const demandedElectricalPower = (load / 100) * DESIGN_POWER_MW;
 
-  // Apply all factors
-  power = power * tempFactor * excitationFactor * maintenanceFactor
+  // --- Temperature Derating ---
+  const tempDeratingThreshold = 85;
+  const maxTempDerating = 0.2;
+  const tempDerating = Math.max(0, engineTemperature - tempDeratingThreshold) / (100 - tempDeratingThreshold) * maxTempDerating;
+  const finalElectricalOutputCapability = electricalOutputCapability * (1 - tempDerating);
 
-  // Add some small random variations for realism
-  power = power * (0.97 + Math.random() * 0.06) // More variation
+  // --- Final Power Output ---
+  let powerOutput = Math.max(0, Math.min(finalElectricalOutputCapability, demandedElectricalPower));
 
-  // Add slight oscillation based on time for more dynamic behavior
-  if (deltaTime > 0) {
-    power = power * (1 + Math.sin(Date.now() / 2000) * 0.03)
-  }
+  // --- Add Random Noise ---
+  powerOutput = addNoise(powerOutput, RANDOM_NOISE_POWER_MW);
 
-  return Math.max(0, power)
+  // Ensure output is not negative after adding noise
+  return Math.max(0, powerOutput);
 }
 
-// Calculate fuel consumption based on input parameters
-export function calculateFuelConsumption(fuelInjectionRate: number, load: number, efficiency: number): number {
-  // Base fuel consumption
-  let consumption = (fuelInjectionRate / 100) * (load / 100) * 200 // L/min
+/**
+ * Calculates the engine's fuel consumption rate.
+ * Simplified model proportional to fuel injection rate.
+ * (No dynamic or noise added here for simplicity and consistency)
+ * @param fuelInjectionRate - Fuel rate (0-100 scale)
+ * @param load - Electrical load demand (0-100 scale) // Not used in calculation
+ * @param efficiency - Current engine efficiency (percentage 0-100) // Not used in calculation
+ * @returns Fuel consumption rate (arbitrary scaled units)
+ */
+export function calculateFuelConsumption(
+  fuelInjectionRate: number,
+  load: number,
+  efficiency: number
+): number {
+  // Max fuel consumption rate (scaled) at 100% fuel injection.
+  const MAX_SCALED_FUEL_CONSUMPTION = 10000; // Arbitrary max scaled units
 
-  // Efficiency factor
-  const efficiencyFactor = 1.0 - (efficiency / 100) * 0.3
+  const fuelRateFactor = fuelInjectionRate / 100;
+  const fuelConsumption = fuelRateFactor * MAX_SCALED_FUEL_CONSUMPTION;
 
-  // Apply factors
-  consumption = consumption * efficiencyFactor
-
-  // Add small random variations
-  consumption = consumption * (0.98 + Math.random() * 0.04)
-
-  return Math.max(0, consumption)
+  return fuelConsumption;
 }
 
-// Calculate engine temperature based on input parameters and time
+/**
+ * Calculates the change in engine temperature over time.
+ * Models temperature as a dynamic system (first-order approximation) with noise.
+ * @param engineTemperature - Current engine temperature (degrees C)
+ * @param fuelInjectionRate - Fuel rate (0-100 scale)
+ * @param coolingSystemPower - Cooling power (0-100 scale)
+ * @param load - Electrical load demand (0-100 scale)
+ * @param deltaTime - Time elapsed since last update (seconds)
+ * @returns New engine temperature (degrees C)
+ */
 export function calculateTemperature(
-  currentTemperature: number,
+  engineTemperature: number,
   fuelInjectionRate: number,
   coolingSystemPower: number,
   load: number,
-  deltaTime: number,
+  deltaTime: number
 ): number {
-  // Heat generation from fuel combustion - more pronounced
-  const heatGeneration = (fuelInjectionRate / 100) * (load / 100) * 12 // Increased from 10
+  // Heat generation only occurs when fuel is injected.
+  const heatGenerated = (fuelInjectionRate / 100) * HEAT_GENERATION_PER_FUEL + (load / 100) * HEAT_GENERATION_PER_LOAD;
 
-  // Cooling effect - more pronounced
-  const cooling = (coolingSystemPower / 100) * 10 // Increased from 8
+  // Heat removal by cooling system.
+  const heatRemovedByCooling = (coolingSystemPower / 100) * COOLING_EFFECTIVENESS;
 
-  // Ambient heat loss (proportional to temperature difference)
-  const ambientLoss = (currentTemperature - 25) * 0.015 // Increased from 0.01
+  // Natural heat loss to the environment.
+  const naturalHeatLoss = (engineTemperature - AMBIENT_TEMPERATURE_C) * NATURAL_COOLING_RATE;
 
-  // Net temperature change rate (degrees per second)
-  const tempChangeRate = heatGeneration - cooling - ambientLoss
+  // --- Net Heat Flow ---
+  const netHeatFlow = heatGenerated - heatRemovedByCooling - naturalHeatLoss;
 
-  // Apply temperature change based on time delta
-  let newTemperature = currentTemperature + tempChangeRate * deltaTime
+  // --- Temperature Change Rate ---
+  let temperatureChangeRate = netHeatFlow / THERMAL_MASS_CAPACITY; // degrees C per second (scaled)
 
-  // Temperature cannot go below ambient (25°C)
-  newTemperature = Math.max(25, newTemperature)
+  // --- Add Random Noise to the rate of change ---
+  temperatureChangeRate = addNoise(temperatureChangeRate, RANDOM_NOISE_TEMPERATURE_C);
 
-  // Add small random variations and oscillation
-  const randomFactor = 0.997 + Math.random() * 0.006
-  const oscillation = Math.sin(Date.now() / 3000) * 0.2
-  newTemperature = newTemperature * randomFactor + oscillation
+  // --- Update Temperature ---
+  const newTemperature = engineTemperature + temperatureChangeRate * deltaTime;
 
-  return newTemperature
+  // Ensure temperature doesn't drop below ambient
+  return Math.max(AMBIENT_TEMPERATURE_C, newTemperature);
 }
 
-// Calculate efficiency based on input parameters
+/**
+ * Calculates the current engine efficiency.
+ * Incorporates random noise.
+ * @param engineTemperature - Engine temperature (degrees C)
+ * @param fuelInjectionRate - Fuel rate (0-100 scale) // Proxy for load point
+ * @param load - Electrical load demand (0-100 scale) // Actual load point
+ * @param maintenanceStatus - Maintenance status (0-100 scale)
+ * @returns Efficiency (percentage 0-100)
+ */
 export function calculateEfficiency(
-  temperature: number,
+  engineTemperature: number,
   fuelInjectionRate: number,
   load: number,
-  maintenanceStatus: number,
+  maintenanceStatus: number
 ): number {
-  // Base efficiency
-  let efficiency = 35 // Base diesel engine efficiency around 35%
+  // --- Base Efficiency ---
+  let efficiency = IDEAL_THERMAL_EFFICIENCY_PERCENT;
 
-  // Temperature factor - optimal temperature is around 80°C - more pronounced
-  const tempFactor = 1.0 - Math.abs(temperature - 80) / 80 // Changed from 100
+  // --- Penalties / Factors ---
+  const tempPenaltyThreshold = 90;
+  const tempPenaltyFactor = 1.0;
+  const tempPenalty = Math.max(0, engineTemperature - tempPenaltyThreshold) * tempPenaltyFactor;
+  efficiency -= tempPenalty;
 
-  // Fuel injection factor - optimal is around 60-80% - more pronounced
-  let fuelFactor = 1.0
-  if (fuelInjectionRate < 40) {
-    fuelFactor = 0.7 + fuelInjectionRate / 100 // Changed from 0.8
-  } else if (fuelInjectionRate > 90) {
-    fuelFactor = 1.0 - (fuelInjectionRate - 90) / 80 // Changed from 100
-  }
+  const optimalLoad = 90;
+  const optimalFuel = 95;
+  const loadPenalty = Math.abs((load / 100) * 100 - optimalLoad) * 0.1;
+  const fuelPenalty = Math.abs((fuelInjectionRate / 100) * 100 - optimalFuel) * 0.1;
+  efficiency -= loadPenalty + fuelPenalty;
 
-  // Load factor - engines are most efficient at 70-90% load - more pronounced
-  let loadFactor = 0.7 // Changed from 0.8
-  if (load > 40 && load < 90) {
-    loadFactor = 0.7 + (load - 40) / 200 // Changed from 0.8 and 250
-  } else if (load > 90) {
-    loadFactor = 1.0 - (load - 90) / 80 // Changed from 100
-  }
+  const maintenanceFactor = maintenanceStatus / 100 * (1 - MAINTENANCE_EFFICIENCY_FACTOR_BASE) + MAINTENANCE_EFFICIENCY_FACTOR_BASE;
+  efficiency *= maintenanceFactor;
 
-  // Maintenance factor - more pronounced
-  const maintenanceFactor = 0.6 + (maintenanceStatus / 100) * 0.4 // Changed from 0.7 and 0.3
+  // --- Clamp Efficiency Before Noise ---
+  efficiency = Math.max(5, Math.min(IDEAL_THERMAL_EFFICIENCY_PERCENT, efficiency));
 
-  // Apply all factors
-  efficiency = efficiency * tempFactor * fuelFactor * loadFactor * maintenanceFactor
+  // --- Add Random Noise ---
+  efficiency = addNoise(efficiency, RANDOM_NOISE_EFFICIENCY_PERCENT);
 
-  // Add small random variations
-  efficiency = efficiency * (0.97 + Math.random() * 0.06) // More variation
-
-  return Math.max(10, Math.min(efficiency, 45)) // Clamp between 10% and 45%
+  // --- Clamp Efficiency After Noise ---
+  return Math.max(5, Math.min(IDEAL_THERMAL_EFFICIENCY_PERCENT, efficiency)); // Re-clamp after noise
 }
 
-// Calculate emissions based on input parameters
+/**
+ * Calculates engine emissions.
+ * Incorporates random noise.
+ * @param fuelInjectionRate - Fuel rate (0-100 scale)
+ * @param engineTemperature - Engine temperature (degrees C)
+ * @param efficiency - Current engine efficiency (percentage 0-100)
+ * @returns Object with emission levels (arbitrary scaled units)
+ */
 export function calculateEmissions(
   fuelInjectionRate: number,
-  temperature: number,
-  efficiency: number,
+  engineTemperature: number,
+  efficiency: number
 ): { co2: number; nox: number; particulates: number } {
-  // CO2 emissions (kg/h) - directly proportional to fuel consumption
-  const co2 = fuelInjectionRate * 2.68 * (1 - (efficiency / 100) * 0.2)
+  const fuelFactor = fuelInjectionRate / 100;
+  const efficiencyFactor = Math.max(0.1, efficiency) / 100; // Prevent issues if efficiency is very low
 
-  // NOx emissions (g/kWh) - increases with temperature
-  let nox = 20 + (temperature - 70) * 1.5
-  if (fuelInjectionRate > 80) {
-    nox = nox * (1 + (fuelInjectionRate - 80) / 100)
-  }
+  // --- Base Emissions ---
+  const baseCO2 = fuelFactor * 1000;
+  const tempThresholdNOx = 70;
+  const tempEffectNOx = Math.max(0, engineTemperature - tempThresholdNOx) * 5;
+  const baseNOx = fuelFactor * 50 + tempEffectNOx;
+  const baseParticulates = fuelFactor * 20 + (100 - efficiency) * 2;
 
-  // Particulate matter (mg/m³) - decreases with efficiency
-  let particulates = 50 - efficiency * 0.5
-  if (fuelInjectionRate > 90) {
-    particulates = particulates * (1 + (fuelInjectionRate - 90) / 50)
-  }
+  // --- Add Random Noise ---
+  const co2 = addNoise(baseCO2, RANDOM_NOISE_EMISSIONS_SCALED);
+  const nox = addNoise(baseNOx, RANDOM_NOISE_EMISSIONS_SCALED);
+  const particulates = addNoise(baseParticulates, RANDOM_NOISE_EMISSIONS_SCALED);
 
-  // Add small random variations
-  const randomFactor = 0.95 + Math.random() * 0.1
 
+  // Ensure emissions are not negative
   return {
-    co2: co2 * randomFactor,
-    nox: Math.max(10, nox * randomFactor),
-    particulates: Math.max(5, particulates * randomFactor),
-  }
+    co2: Math.max(0, co2),
+    nox: Math.max(0, nox),
+    particulates: Math.max(0, particulates),
+  };
 }

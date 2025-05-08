@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useEngineStore } from '@/lib/Engine';
+import { useEngineStore } from '@/lib/engine';
 
 export function useEngineSimulation() {
     const animationRef = useRef<number | null>(null);

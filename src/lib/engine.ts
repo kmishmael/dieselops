@@ -137,7 +137,7 @@ const cascadeControllerConfig: CascadeControllerConfig = {
     outputMax: 100,
   },
   enabled: false,
-  primarySetpoint: 75, // Default temperature setpoint
+  primarySetpoint: 75, // Default temperature setpoint for Temp-Cooling
   secondarySetpointOffset: 0,
   secondarySetpointScale: 1,
 };
@@ -150,10 +150,10 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   simulationSpeed: 1,
   time: 0,
 
-  fuelInjectionRate: 50,
-  load: 40,
+  fuelInjectionRate: 70,
+  load: 80,
   coolingSystemPower: 60,
-  generatorExcitation: 70,
+  generatorExcitation: 80,
   maintenanceStatus: 100,
   emergencyMode: false,
 
@@ -175,8 +175,8 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   },
   autoControlTargets: {
     temperature: 75,
-    power: 5,
-    efficiency: 40,
+    power: 50,
+    efficiency: 45,
   },
 
   controllerOutputs: {
@@ -221,10 +221,10 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     set({
       running: false,
       time: 0,
-      fuelInjectionRate: 50,
-      load: 40,
+      fuelInjectionRate: 70,
+      load: 80,
       coolingSystemPower: 60,
-      generatorExcitation: 70,
+      generatorExcitation: 80,
       maintenanceStatus: 100,
       emergencyMode: false,
       powerOutput: 0,
@@ -247,14 +247,22 @@ export const useEngineStore = create<EngineState>((set, get) => ({
         efficiency: [],
       },
       cascadeHistory: [],
+      autoControlEnabled: get().autoControlEnabled,
+      autoControlTargets: get().autoControlTargets,
+
+      cascadeControlEnabled: get().cascadeControlEnabled, // Keep enabled state
+      cascadeControlType: get().cascadeControlType,
+
       cascadeControlConfig: {
-        ...get().cascadeControlConfig,
-        primaryMeasurement: 25,
+        type: get().cascadeControlType,
+        primarySetpoint: get().cascadeControlConfig.primarySetpoint, // Keep setpoint
+        primaryMeasurement: 25, // Reset measurement
         primaryOutput: 0,
         secondarySetpoint: 0,
         secondaryMeasurement: 0,
         secondaryOutput: 0,
       },
+      cascadeParameters: get().cascadeParameters, // Keep parameters
     });
   },
 
@@ -276,6 +284,9 @@ export const useEngineStore = create<EngineState>((set, get) => ({
         emergencyMode: true,
       });
 
+      // temperatureController.setEnabled(false);
+      // powerController.setEnabled(false);
+      // efficiencyController.setEnabled(false);
       cascadeController.setEnabled(false);
     } else {
       set({ emergencyMode: false });
@@ -285,6 +296,8 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   updateSimulation: (deltaTime) => {
     const state = get();
     const {
+      running,
+      simulationSpeed,
       autoControlEnabled,
       autoControlTargets,
       cascadeControlEnabled,
@@ -301,8 +314,13 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       time
     } = state;
 
+    if (!running) return;
+
+    // Calculate effective deltaTime based on simulation speed
+    const effectiveDeltaTime = deltaTime * simulationSpeed;
+
     // Calculate new time
-    const newTime = time + deltaTime;
+    const newTime = time + effectiveDeltaTime;
 
     // Apply automatic controls if enabled
     let newCoolingPower = coolingSystemPower;
@@ -419,13 +437,14 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     }
 
     // Calculate new values based on current parameters and time
+
     const newPowerOutput = calculatePowerOutput(
       newFuelRate,
       load,
       engineTemperature,
       newExcitation,
       maintenanceStatus,
-      deltaTime
+      newTime
     );
 
     const newFuelConsumption = calculateFuelConsumption(
@@ -439,7 +458,7 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       newFuelRate,
       newCoolingPower,
       load,
-      deltaTime
+      effectiveDeltaTime
     );
 
     const newEfficiency = calculateEfficiency(
@@ -476,15 +495,21 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     // Update state with new calculated values
     set({
       time: newTime,
+      fuelInjectionRate: newFuelRate,
+      coolingSystemPower: newCoolingPower,
+      generatorExcitation: newExcitation,
+
       powerOutput: newPowerOutput,
       fuelConsumption: newFuelConsumption,
       engineTemperature: newTemperature,
       efficiency: newEfficiency,
       emissions: newEmissions,
       alerts: currentAlerts,
+
       powerHistory: newPowerHistory,
       temperatureHistory: newTemperatureHistory,
-      efficiencyHistory: newEfficiencyHistory
+      efficiencyHistory: newEfficiencyHistory,
+
     });
   },
 
