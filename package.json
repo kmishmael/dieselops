@@ -41,6 +41,7 @@
     "cmdk": "^1.1.1",
     "d3": "^7.9.0",
     "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^12.10.1",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.503.0",
     "react": "^19.0.0",
@@ -53,7 +54,8 @@
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
     "tailwindcss": "^4.1.5",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "zustand": "^5.0.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

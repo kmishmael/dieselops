@@ -38,6 +38,8 @@ import {
 interface CascadeControlPanelProps {
   cascadeControlEnabled: boolean;
   setCascadeControlEnabled: (enabled: boolean) => void;
+  cascadeControlType: string;
+  setCascadeControlType: (type: string) => void;
   cascadeControlConfig: {
     type: string;
     primarySetpoint: number;
@@ -48,15 +50,10 @@ interface CascadeControlPanelProps {
     secondaryOutput: number;
   };
   updateCascadeSetpoint: (setpoint: number) => void;
-  updateCascadeParameters: (
-    controller: "primary" | "secondary",
-    kp?: number,
-    ki?: number,
-    kd?: number
-  ) => void;
+  updateCascadeParameters: (controller: "primary" | "secondary", kp?: number, ki?: number, kd?: number) => void;
   cascadeParameters: {
-    primary: { kp: number; ki: number; kd: number };
-    secondary: { kp: number; ki: number; kd: number };
+    primary: { kp: number, ki: number, kd: number };
+    secondary: { kp: number, ki: number, kd: number };
   };
   cascadeHistory: any[];
   running: boolean;
