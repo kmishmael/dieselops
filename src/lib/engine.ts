@@ -4,12 +4,25 @@ import {
   calculateFuelConsumption,
   calculateTemperature,
   calculateEfficiency,
-  calculateEmissions
+  calculateEmissions,
+  calculateRPM,
+  calculateFrequency,
+  calculateVoltage,
+  resetEngineState,
+  ENGINE_CONSTANTS,
+  getEngineState,
 } from "./simulation";
 import { PIDController } from "./pid-controller";
 import { CascadeController, type CascadeControllerConfig } from "./cascade-controller";
 
 export interface EngineState {
+
+  // Add shutdown state tracking
+  isStarting: boolean;
+  isShuttingDown: boolean;
+  startupProgress: number;
+  shutdownProgress: number;
+
   // Simulation state
   running: boolean;
   simulationSpeed: number;
@@ -22,6 +35,11 @@ export interface EngineState {
   generatorExcitation: number;
   maintenanceStatus: number;
   emergencyMode: boolean;
+
+  // Physical state parameters
+  rpm: number;
+  frequency: number;
+  voltage: number;
 
   // Calculated outputs
   powerOutput: number;
@@ -39,6 +57,7 @@ export interface EngineState {
   powerHistory: Array<{ time: number; value: number }>;
   temperatureHistory: Array<{ time: number; value: number }>;
   efficiencyHistory: Array<{ time: number; value: number }>;
+  rpmHistory: Array<{ time: number; value: number }>;
 
   // Automatic control systems
   autoControlEnabled: {
@@ -83,6 +102,9 @@ export interface EngineState {
     secondary: { kp: number; ki: number; kd: number };
   };
   cascadeHistory: any[];
+
+  // Constants reference
+  engineConstants: typeof ENGINE_CONSTANTS;
 
   // Actions
   setRunning: (isRunning: boolean) => void;
@@ -137,7 +159,7 @@ const cascadeControllerConfig: CascadeControllerConfig = {
     outputMax: 100,
   },
   enabled: false,
-  primarySetpoint: 75, // Default temperature setpoint for Temp-Cooling
+  primarySetpoint: 75, // Default temperature setpoint
   secondarySetpointOffset: 0,
   secondarySetpointScale: 1,
 };
@@ -145,6 +167,12 @@ const cascadeControllerConfig: CascadeControllerConfig = {
 const cascadeController = new CascadeController(cascadeControllerConfig);
 
 export const useEngineStore = create<EngineState>((set, get) => ({
+  // Add startup/shutdown state tracking
+  isStarting: false,
+  isShuttingDown: false,
+  startupProgress: 0,
+  shutdownProgress: 0,
+
   // Initial state
   running: false,
   simulationSpeed: 1,
@@ -157,9 +185,14 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   maintenanceStatus: 100,
   emergencyMode: false,
 
+  // Physical parameters
+  rpm: 0,
+  frequency: 0,
+  voltage: 0,
+
   powerOutput: 0,
   fuelConsumption: 0,
-  engineTemperature: 25,
+  engineTemperature: ENGINE_CONSTANTS.AMBIENT_TEMP,
   efficiency: 0,
   emissions: { co2: 0, nox: 0, particulates: 0 },
   alerts: [],
@@ -167,6 +200,7 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   powerHistory: [],
   temperatureHistory: [],
   efficiencyHistory: [],
+  rpmHistory: [],
 
   autoControlEnabled: {
     temperature: false,
@@ -174,9 +208,9 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     efficiency: false,
   },
   autoControlTargets: {
-    temperature: 75,
-    power: 50,
-    efficiency: 45,
+    temperature: 85,
+    power: 40,
+    efficiency: 40,
   },
 
   controllerOutputs: {
@@ -194,8 +228,8 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   cascadeControlType: "temperature-cooling",
   cascadeControlConfig: {
     type: "temperature-cooling",
-    primarySetpoint: 75,
-    primaryMeasurement: 25,
+    primarySetpoint: 85,
+    primaryMeasurement: ENGINE_CONSTANTS.AMBIENT_TEMP,
     primaryOutput: 0,
     secondarySetpoint: 0,
     secondaryMeasurement: 0,
@@ -207,8 +241,34 @@ export const useEngineStore = create<EngineState>((set, get) => ({
   },
   cascadeHistory: [],
 
+  // Engine constants reference
+  engineConstants: ENGINE_CONSTANTS,
+
   // Actions
-  setRunning: (isRunning) => set({ running: isRunning }),
+  setRunning: (isRunning) => {
+    const currentState = get();
+
+    // Handle startup
+    if (isRunning && !currentState.running) {
+      // Start the engine
+      set({
+        running: true,
+        isStarting: true,
+        isShuttingDown: false,
+        shutdownProgress: 0
+      });
+    }
+    // Handle shutdown
+    else if (!isRunning && currentState.running) {
+      // Stop the engine
+      set({
+        running: false,
+        isShuttingDown: true,
+        isStarting: false,
+        startupProgress: 0
+      });
+    }
+  },
   setSimulationSpeed: (speed) => set({ simulationSpeed: speed }),
 
   resetSimulation: () => {
@@ -217,9 +277,14 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     powerController.reset();
     efficiencyController.reset();
     cascadeController.reset();
+    resetEngineState();
 
     set({
       running: false,
+      isStarting: false,
+      isShuttingDown: false,
+      startupProgress: 0,
+      shutdownProgress: 0,
       time: 0,
       fuelInjectionRate: 70,
       load: 80,
@@ -227,15 +292,19 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       generatorExcitation: 80,
       maintenanceStatus: 100,
       emergencyMode: false,
+      rpm: 0,
+      frequency: 0,
+      voltage: 0,
       powerOutput: 0,
       fuelConsumption: 0,
-      engineTemperature: 25,
+      engineTemperature: ENGINE_CONSTANTS.AMBIENT_TEMP,
       efficiency: 0,
       emissions: { co2: 0, nox: 0, particulates: 0 },
       alerts: [],
       powerHistory: [],
       temperatureHistory: [],
       efficiencyHistory: [],
+      rpmHistory: [],
       controllerOutputs: {
         cooling: 0,
         fuel: 0,
@@ -247,22 +316,14 @@ export const useEngineStore = create<EngineState>((set, get) => ({
         efficiency: [],
       },
       cascadeHistory: [],
-      autoControlEnabled: get().autoControlEnabled,
-      autoControlTargets: get().autoControlTargets,
-
-      cascadeControlEnabled: get().cascadeControlEnabled, // Keep enabled state
-      cascadeControlType: get().cascadeControlType,
-
       cascadeControlConfig: {
-        type: get().cascadeControlType,
-        primarySetpoint: get().cascadeControlConfig.primarySetpoint, // Keep setpoint
-        primaryMeasurement: 25, // Reset measurement
+        ...get().cascadeControlConfig,
+        primaryMeasurement: ENGINE_CONSTANTS.AMBIENT_TEMP,
         primaryOutput: 0,
         secondarySetpoint: 0,
         secondaryMeasurement: 0,
         secondaryOutput: 0,
       },
-      cascadeParameters: get().cascadeParameters, // Keep parameters
     });
   },
 
@@ -272,8 +333,8 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     if (newMode) {
       // Emergency mode settings
       set({
-        fuelInjectionRate: 90,
-        coolingSystemPower: 100,
+        fuelInjectionRate: 20, // Reduced load in emergency
+        coolingSystemPower: 100, // Max cooling
         generatorExcitation: 100,
         autoControlEnabled: {
           temperature: false,
@@ -284,9 +345,6 @@ export const useEngineStore = create<EngineState>((set, get) => ({
         emergencyMode: true,
       });
 
-      // temperatureController.setEnabled(false);
-      // powerController.setEnabled(false);
-      // efficiencyController.setEnabled(false);
       cascadeController.setEnabled(false);
     } else {
       set({ emergencyMode: false });
@@ -305,6 +363,7 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       emergencyMode,
       engineTemperature,
       powerOutput,
+      rpm,
       efficiency,
       fuelInjectionRate,
       load,
@@ -313,8 +372,6 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       maintenanceStatus,
       time
     } = state;
-
-    if (!running) return;
 
     // Calculate effective deltaTime based on simulation speed
     const effectiveDeltaTime = deltaTime * simulationSpeed;
@@ -436,19 +493,22 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       });
     }
 
-    // Calculate new values based on current parameters and time
+    // Calculate new RPM based on fuel injection rate and load
+    const newRPM = calculateRPM(rpm, newFuelRate, load, running, effectiveDeltaTime);
 
+    // Calculate new values based on current parameters and time
     const newPowerOutput = calculatePowerOutput(
       newFuelRate,
       load,
       engineTemperature,
       newExcitation,
       maintenanceStatus,
-      newTime
+      newRPM
     );
 
     const newFuelConsumption = calculateFuelConsumption(
       newFuelRate,
+      newRPM,
       load,
       efficiency
     );
@@ -458,6 +518,8 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       newFuelRate,
       newCoolingPower,
       load,
+      newRPM,
+      running,
       effectiveDeltaTime
     );
 
@@ -465,51 +527,65 @@ export const useEngineStore = create<EngineState>((set, get) => ({
       engineTemperature,
       newFuelRate,
       load,
+      newRPM,
       maintenanceStatus
     );
 
     const newEmissions = calculateEmissions(
       newFuelRate,
       engineTemperature,
+      newRPM,
       efficiency
     );
+
+    // Calculate electrical outputs
+    const newFrequency = calculateFrequency(newRPM);
+    const newVoltage = calculateVoltage(newRPM, newExcitation);
 
     // Check for alerts
     const currentAlerts: string[] = [];
     if (newTemperature > 95) currentAlerts.push("Engine temperature critical!");
-    if (newEfficiency < 5) currentAlerts.push("Low efficiency warning");
+    if (newEfficiency < 0) currentAlerts.push("Low efficiency warning");
     if (maintenanceStatus < 30) currentAlerts.push("Maintenance required");
-    if (newEmissions.nox > 80) currentAlerts.push("NOx emissions exceeding limits");
+    if (newEmissions.nox > 600) currentAlerts.push("NOx emissions exceeding limits");
+    if (newRPM > ENGINE_CONSTANTS.RATED_RPM * 1.1) currentAlerts.push("Engine overspeed warning");
 
     // Update historical data for graphs
     let newPowerHistory = [...state.powerHistory];
     let newTemperatureHistory = [...state.temperatureHistory];
     let newEfficiencyHistory = [...state.efficiencyHistory];
+    let newRpmHistory = [...state.rpmHistory];
 
     if (Math.floor(newTime) > Math.floor(time)) {
       newPowerHistory = [...newPowerHistory, { time: newTime, value: newPowerOutput }].slice(-100);
       newTemperatureHistory = [...newTemperatureHistory, { time: newTime, value: newTemperature }].slice(-100);
       newEfficiencyHistory = [...newEfficiencyHistory, { time: newTime, value: newEfficiency }].slice(-100);
+      newRpmHistory = [...newRpmHistory, { time: newTime, value: newRPM }].slice(-100);
     }
+
+    const engineState = getEngineState();
 
     // Update state with new calculated values
     set({
       time: newTime,
-      fuelInjectionRate: newFuelRate,
-      coolingSystemPower: newCoolingPower,
-      generatorExcitation: newExcitation,
-
+      rpm: newRPM,
+      frequency: newFrequency,
+      voltage: newVoltage,
       powerOutput: newPowerOutput,
       fuelConsumption: newFuelConsumption,
       engineTemperature: newTemperature,
       efficiency: newEfficiency,
       emissions: newEmissions,
       alerts: currentAlerts,
-
       powerHistory: newPowerHistory,
       temperatureHistory: newTemperatureHistory,
       efficiencyHistory: newEfficiencyHistory,
+      rpmHistory: newRpmHistory,
 
+      isStarting: engineState.isStarting,
+      isShuttingDown: engineState.isShuttingDown,
+      startupProgress: engineState.startupProgress,
+      shutdownProgress: engineState.shutdownProgress,
     });
   },
 
@@ -577,6 +653,7 @@ export const useEngineStore = create<EngineState>((set, get) => ({
     // Temporarily disable other controllers
     set({
       autoControlEnabled: {
+        ...prevAutoControlEnabled,
         temperature: controller === "temperature",
         power: controller === "power",
         efficiency: controller === "efficiency",

@@ -125,14 +125,14 @@ export default function AdvancedControls({
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="manual" onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3 mb-4">
-          <TabsTrigger value="manual">Manual Control</TabsTrigger>
+      <Tabs defaultValue="presets" onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-2 mb-4">
+          {/* <TabsTrigger value="manual">Manual Control</TabsTrigger> */}
           <TabsTrigger value="presets">Presets</TabsTrigger>
           <TabsTrigger value="scenarios">Test Scenarios</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manual">
+        {/* <TabsContent value="manual">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
@@ -367,7 +367,7 @@ export default function AdvancedControls({
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="presets">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

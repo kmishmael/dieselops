@@ -1,6 +1,7 @@
-import React from "react";
-import "./eng.css"
+import React, { useEffect, useState } from "react";
+import "./eng.css";
 import { RadialGauge } from "react-canvas-gauges";
+import AlternatorFan from "./alternator-fan";
 
 interface EngineVisualizationProps {
   temperature: number;
@@ -9,6 +10,7 @@ interface EngineVisualizationProps {
   rpm: number;
   voltage?: number;
   frequency?: number;
+  excitation: number;
 }
 
 interface GaugeProps {
@@ -76,7 +78,7 @@ const Gauge: React.FC<GaugeProps> = ({
 
   return (
     <div
-      className="flex flex-col items-center p-2 bg-slate-700 rounded-lg shadow-md"
+      className="flex flex-col items-center p-2 bg-secondary rounded-lg shadow-md"
       style={{ width: size + 20 }}
     >
       <RadialGauge
@@ -131,23 +133,52 @@ const Gauge: React.FC<GaugeProps> = ({
     </div>
   );
 };
-
 interface DigitalDisplayProps {
   label: string;
   value?: number;
   unit: string;
+  blinking?: boolean;
 }
+
 const DigitalDisplay: React.FC<DigitalDisplayProps> = ({
   label,
   value,
   unit,
+  blinking = false,
 }) => {
+  const [blink, setBlink] = useState(false);
+
+  // Blinking effect
+  useEffect(() => {
+    if (blinking) {
+      const interval = setInterval(() => {
+        setBlink((prev) => !prev);
+      }, 500);
+      return () => clearInterval(interval);
+    } else {
+      setBlink(false);
+    }
+  }, [blinking]);
+
   return (
-    <div className="p-3 bg-slate-900 rounded-lg shadow-md text-center min-w-[120px]">
-      <div className="text-sm font-medium text-slate-400 mb-1">{label}</div>
-      <div className="text-2xl font-mono text-green-400">
-        {value !== undefined ? value.toFixed(1) : "N/A"}{" "}
-        <span className="text-lg text-slate-400">{unit}</span>
+    <div className="relative p-4 bg-card/80 border border-muted rounded-lg shadow-lg min-w-[160px]">
+      {/* Top label bar */}
+      <div className="absolute top-0 left-0 right-0 bg-card text-center py-1 px-2 rounded-t-lg border-b border-muted">
+        <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">
+          {label}
+        </span>
+      </div>
+
+      {/* LED Display */}
+      <div className="mt-6 mb-1 p-2 bg-black rounded-md border border-muted font-mono text-center">
+        <div
+          className={`text-green-400 text-3xl font-bold ${
+            blink ? "opacity-30" : "opacity-100"
+          }`}
+        >
+          {value !== undefined ? value.toFixed(1) : "----"}
+          <span className="text-lg ml-1 text-gray-400">{unit}</span>
+        </div>
       </div>
     </div>
   );
@@ -160,17 +191,16 @@ const StatusLight: React.FC<StatusLightProps> = ({ running }) => {
   return (
     <div className="flex flex-col items-center">
       <div
-        className={`w-8 h-8 rounded-full border-2 border-slate-500 shadow-lg transition-all duration-300
+        className={`w-8 h-8 rounded-full border-2 border-border shadow-lg transition-all duration-300
                      ${
                        running
                          ? "bg-green-500 animate-pulse-green"
                          : "bg-red-600"
                      }`}
       />
-      <span className="mt-1 text-xs text-slate-400 font-medium">
+      <span className="mt-1 text-xs text-muted-foreground font-medium">
         {running ? "RUNNING" : "STOPPED"}
       </span>
-    
     </div>
   );
 };
@@ -187,9 +217,9 @@ const Piston: React.FC<PistonProps> = ({ running, rpm, index }) => {
     : 0;
 
   return (
-    <div className="w-10 h-20 bg-slate-600 border-2 border-slate-700 rounded-t-md relative overflow-hidden">
+    <div className="w-10 h-20 bg-black/70 border-2 border-black rounded-t-md relative overflow-hidden">
       <div
-        className="w-full h-8 bg-slate-800 absolute bottom-0"
+        className="w-full h-8 bg-muted absolute bottom-0"
         style={{
           animation:
             running && rpm > 0
@@ -203,49 +233,39 @@ const Piston: React.FC<PistonProps> = ({ running, rpm, index }) => {
 
 interface GeneratorVisualProps {
   active: boolean;
+  rpm: number;
+  excitation;
 }
-const GeneratorVisual: React.FC<GeneratorVisualProps> = ({ active }) => {
+const GeneratorVisual: React.FC<GeneratorVisualProps> = ({
+  active,
+  rpm,
+  excitation,
+}) => {
   return (
     <div className="flex flex-col items-center">
       <div
         className={`w-24 h-32 rounded-lg border-2 shadow-md relative flex flex-col items-center justify-center transition-all duration-500 ${
-          active
-            ? "bg-emerald-600 border-emerald-700"
-            : "bg-slate-700 border-slate-800"
+          active ? "bg-emerald-600 border-emerald-700" : "bg-card border-border"
         }`}
       >
-       
         <div
           className={`w-20 h-6 rounded-sm mb-2 ${
-            active ? "bg-emerald-800" : "bg-slate-900"
+            active ? "bg-emerald-800" : "bg-muted"
           }`}
         ></div>
-       
+
         <div
           className={`w-16 h-16 rounded-full flex items-center justify-center shadow-inner ${
-            active ? "bg-emerald-500" : "bg-slate-600"
+            active ? "bg-emerald-500" : "bg-secondary"
           }`}
         >
-          {active && (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-8 h-8 text-yellow-300 animate-pulse-yellow"
-            >
-              <path
-                fillRule="evenodd"
-                d="M14.615 1.585a.75.75 0 0 1 .359.852L12.982 9.75h7.268a.75.75 0 0 1 .548 1.262l-10.5 11.25a.75.75 0 0 1-1.272-.728l1.992-7.302H3.75a.75.75 0 0 1-.548-1.262l10.5-11.25a.75.75 0 0 1 .913-.14Z"
-                clipRule="evenodd"
-              />
-            </svg>
-          )}
+          {active && <AlternatorFan rpmSpeed={rpm} />}
           {!active && (
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-8 h-8 text-slate-500"
+              className="w-8 h-8 text-muted-foreground"
             >
               <path
                 fillRule="evenodd"
@@ -256,14 +276,23 @@ const GeneratorVisual: React.FC<GeneratorVisualProps> = ({ active }) => {
           )}
         </div>
         <div
-          className={`w-20 h-4 rounded-sm mt-2 ${
-            active ? "bg-emerald-800" : "bg-slate-900"
+          className={`w-20 h-4 text-center rounded-sm mt-2 ${
+            active ? "bg-emerald-800" : "bg-muted"
           }`}
-        ></div>
+        >
+          {active ? (
+            <>
+              {/** Excitation */}
+              <p className="text-[10px] text-neutral-200 font-bold">
+                {excitation}%
+              </p>
+            </>
+          ) : null}
+        </div>
       </div>
       <p
         className={`mt-2 text-xs font-semibold ${
-          active ? "text-emerald-400 animate-pulse" : "text-slate-400"
+          active ? "text-emerald-400 animate-pulse" : "text-muted-foreground"
         }`}
       >
         GENERATOR {active ? "(ACTIVE)" : "(IDLE)"}
@@ -279,44 +308,48 @@ const EngineVisualization: React.FC<EngineVisualizationProps> = ({
   rpm,
   voltage,
   frequency,
+  excitation,
 }) => {
   const numPistons = 4;
   const isGeneratorActive = running && rpm > 300;
 
   return (
-    <div className="p-4 md:p-6 bg-gradient-to-br from-gray-800 to-black min-h-screen flex flex-col items-center justify-center font-sans">
-      <div className="w-full max-w-5xl bg-slate-800 p-4 sm:p-6 rounded-xl shadow-2xl border-4 border-slate-700">
+    <div className="flex flex-col items-center justify-center font-sans">
+      <div className="w-full bg-card p-4 sm:p-6 rounded-xl shadow-2xl border border-border">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100">
-            DIESEL GENERATOR 50MW - CONTROL PANEL
+          <h1 className="text-2xl mb-3 sm:text-3xl font-bold text-foreground">
+            50MW DIESEL GENERATOR
           </h1>
-          <p className="text-sm text-slate-400">Real-time Engine Monitoring</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 sm:gap-6 mb-6">
-          <div className="lg:col-span-3 bg-slate-700 p-4 rounded-lg shadow-md flex flex-col items-center justify-around">
-            <h2 className="text-lg font-semibold text-slate-100 mb-4">
+          <div className="lg:col-span-3 bg-secondary p-4 rounded-lg shadow-md flex flex-col items-center justify-around">
+            <h2 className="text-lg font-semibold text-foreground mb-4">
               ENGINE & GENERATOR UNIT
             </h2>
             <div className="flex flex-col md:flex-row items-center md:items-end justify-around w-full gap-4 mb-4">
               <div className="flex flex-col items-center">
-                <p className="text-sm text-slate-400 mb-1 font-medium">
+                <p className="text-sm text-muted-foreground mb-1 font-medium">
                   Engine Pistons
                 </p>
-                <div className="flex justify-around items-end w-auto h-32 bg-slate-800 p-3 rounded-lg shadow-inner border-2 border-slate-900 space-x-2">
+                <div className="flex justify-around items-end w-auto h-32 bg-neutral-900 p-3 rounded-lg shadow-inner border-2 border-secondary space-x-2">
                   {Array.from({ length: numPistons }).map((_, i) => (
                     <Piston key={i} running={running} rpm={rpm} index={i} />
                   ))}
                 </div>
               </div>
-              <GeneratorVisual active={isGeneratorActive} />
+              <GeneratorVisual
+                active={isGeneratorActive}
+                rpm={rpm}
+                excitation={excitation}
+              />
             </div>
 
-            <div className="flex items-center justify-center space-x-6 mt-auto pt-3 border-t border-slate-600 w-full">
+            <div className="flex items-center justify-center space-x-6 mt-auto pt-3 border-t border-border w-full">
               {running && (
                 <div className="flex flex-col items-center space-y-1">
                   <div className="w-3 h-3 sm:w-4 sm:h-4 bg-yellow-400 rounded-full animate-ping opacity-75"></div>
-                  <div className="text-xs text-slate-400 self-center">
+                  <div className="text-xs text-muted-foreground self-center">
                     Exhaust
                   </div>
                 </div>
@@ -331,7 +364,7 @@ const EngineVisualization: React.FC<EngineVisualizationProps> = ({
               value={rpm}
               unit="rpm"
               minValue={0}
-              maxValue={1000}
+              maxValue={2000}
               size={160}
             />
             <Gauge
@@ -353,7 +386,7 @@ const EngineVisualization: React.FC<EngineVisualizationProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 items-center bg-slate-700 p-4 rounded-lg shadow-md">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 items-center bg-secondary p-4 rounded-lg shadow-md">
           <DigitalDisplay
             label="Voltage Out"
             value={isGeneratorActive ? voltage : 0}
@@ -364,15 +397,6 @@ const EngineVisualization: React.FC<EngineVisualizationProps> = ({
             value={isGeneratorActive ? frequency : 0}
             unit="Hz"
           />
-          <div className="flex justify-center md:justify-end mt-4 md:mt-0 text-sm text-slate-400">
-            {isGeneratorActive ? "Generating Power" : "Generator Idle"}
-          </div>
-        </div>
-
-        <div className="mt-6 pt-4 border-t border-slate-600 text-center">
-          <p className="text-xs text-slate-400">
-            System Monitor. Last update: {new Date().toLocaleTimeString()}
-          </p>
         </div>
       </div>
     </div>

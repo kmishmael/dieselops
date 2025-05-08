@@ -1,227 +1,545 @@
+// System Constants
+export const ENGINE_CONSTANTS = {
+  MAX_POWER: 50, // Maximum power output in MW
+  RATED_RPM: 500, // Rated RPM for large industrial diesel engine
+  IDLE_RPM: 200, // Idle speed RPM
+  AMBIENT_TEMP: 25, // Ambient temperature in °C
+  OPTIMAL_TEMP: 85, // Optimal operating temperature in °C
+  THERMAL_DANGER: 98, // Temperature danger threshold
+  SPECIFIC_HEAT_CAPACITY_AIR: 1.005, // kJ/kgK (approx for exhaust gases)
+  ENGINE_THERMAL_MASS: 75000, // kJ/°C (effective thermal mass of the engine block, fluids etc.) - Increased for slower, more realistic changes
+  MAX_HEAT_GENERATION_RATE: 70000, // kW (thermal power at max load/rpm, related to MAX_POWER * (1/efficiency - 1))
+  MAX_COOLING_POWER_RATE: 80000, // kW (max heat dissipation capability of the cooling system)
+  AMBIENT_HEAT_TRANSFER_COEFFICIENT: 0.5, // kW/°C (heat loss to ambient)
+  NOMINAL_FUEL_RATE: 170, // Nominal fuel consumption at rated power (L/hour)
+  MAX_TORQUE_RPM: 450, // RPM at max torque
+  MOMENT_OF_INERTIA: 35000, // Engine moment of inertia in kg·m² (large flywheel effect)
+  RPM_TIME_CONSTANT: 8, // Time constant for RPM changes in seconds
+  TEMPERATURE_TIME_CONSTANT: 15, // Time constant for temperature changes in seconds
+  STARTUP_DURATION: 0, // Duration for engine to reach stable idle in seconds
+  SHUTDOWN_DURATION: 5, // Duration for engine to cool down in seconds 
+};
 
-const DESIGN_POWER_MW = 62; // Target electrical power output in MW
-const MAX_MECHANICAL_POWER_MW = 75; // Max engine shaft power (slightly higher than electrical)
-const NOMINAL_FUEL_CONSUMPTION_RATE_KGH_PER_MW = 200; // Approx kg/h per MW at good efficiency (used conceptually)
-const IDEAL_THERMAL_EFFICIENCY_PERCENT = 48; // Peak thermal efficiency
-const AMBIENT_TEMPERATURE_C = 25; // degrees C
+// Internal engine state tracking for smoother transitions
+let engineState = {
+  startupProgress: 0, // 0-1 value representing startup progression
+  startupTime: 0,     // Time spent in startup sequence
+  isStarting: false,  // Flag to indicate if engine is in startup sequence
+  shutdownProgress: 0, // 0-1 value representing shutdown progression
+  shutdownTime: 0,     // Time spent in shutdown sequence
+  isShuttingDown: false, // Flag to indicate if engine is in shutdown sequence
+  wasRunning: false,   // Flag to track if engine was previously running
+  targetRpm: 0,       // Target RPM based on controls
+  lastTimestamp: 0,   // Last timestamp for deltaTime calcs
+};
 
-// Constants for Temperature Dynamics
-const THERMAL_MASS_CAPACITY = 1000; // Arbitrary value for temperature dynamics
-const COOLING_EFFECTIVENESS = 0.1; // How much cooling power affects temperature change rate
-const HEAT_GENERATION_PER_FUEL = 0.3; // How much fuel contributes to temperature rise (scaled)
-const HEAT_GENERATION_PER_LOAD = 0.1; // How much load contributes to temperature rise (scaled)
-const NATURAL_COOLING_RATE = 0.05; // How much heat is lost naturally (scaled)
-
-// Constants for Efficiency & Power Factors
-const GENERATOR_EFFICIENCY_BASE = 0.95; // Base generator efficiency
-const GENERATOR_EFFICIENCY_VARIATION = 0.05; // Variation based on excitation (0.95 to 1.0)
-const MAINTENANCE_POWER_FACTOR_BASE = 0.7; // Minimum power factor due to maintenance
-const MAINTENANCE_EFFICIENCY_FACTOR_BASE = 0.5; // Minimum efficiency factor due to maintenance
-
-// Constants for Realism Factors
-const STARTUP_DURATION_SECONDS = 10; // How long it takes to spool up at the start
-const RANDOM_NOISE_POWER_MW = 0.5; // Max random variation in power output (MW)
-const RANDOM_NOISE_TEMPERATURE_C = 0.2; // Max random variation in temperature (C/s rate)
-const RANDOM_NOISE_EFFICIENCY_PERCENT = 0.5; // Max random variation in efficiency (%)
-const RANDOM_NOISE_EMISSIONS_SCALED = 5; // Max random variation in emissions (scaled units)
-
-function addNoise(value: number, maxNoise: number): number {
-  // Generates a random number between -maxNoise and +maxNoise
-  return value + (Math.random() * 2 - 1) * maxNoise;
+/**
+ * Calculate sigmoid value for smooth transitions
+ * Returns value between 0-1
+ */
+function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x));
 }
 
 /**
- * Calculates the current power output of the engine and generator.
- * Incorporates startup ramp-up and random noise.
- * @param fuelInjectionRate - Fuel rate (0-100 scale)
- * @param load - Electrical load demand (0-100 scale)
- * @param engineTemperature - Engine temperature (degrees C)
- * @param generatorExcitation - Generator excitation (0-100 scale)
- * @param maintenanceStatus - Maintenance status (0-100 scale)
- * @param timeSinceStart - Time elapsed since the simulation started (seconds)
- * @returns Power output in MW
+ * Normalized sigmoid from 0-1 for x from -6 to 6
+ */
+function normalizedSigmoid(x: number): number {
+  // Map x from 0-1 to -6 to 6 range for sigmoid
+  const remapped = (x * 12) - 6;
+  // Get sigmoid and normalize to 0-1 range
+  return (sigmoid(remapped) - sigmoid(-6)) / (sigmoid(6) - sigmoid(-6));
+}
+
+/**
+ * Process engine startup sequence
+ */
+export function processStartup(
+  isRunning: boolean,
+  deltaTime: number
+): number {
+  // Track running state changes
+  const wasRunningBefore = engineState.wasRunning;
+  engineState.wasRunning = isRunning;
+
+  // Engine was just turned off - initiate shutdown
+  if (wasRunningBefore && !isRunning) {
+    engineState.isShuttingDown = true;
+    engineState.shutdownTime = 0;
+    engineState.shutdownProgress = 0;
+    engineState.isStarting = false;
+  }
+
+  // Start the sequence when engine is turned on from off state
+  if (isRunning && !engineState.isStarting && engineState.startupProgress === 0) {
+    engineState.isStarting = true;
+    engineState.startupTime = 0;
+    engineState.isShuttingDown = false;
+    engineState.shutdownProgress = 0;
+  }
+
+  // Process startup sequence
+  if (engineState.isStarting) {
+    // Make sure we use the actual deltaTime value, not scaled
+    engineState.startupTime += deltaTime;
+
+    // Calculate progress as a fraction of startup duration with sigmoid curve
+    const linearProgress = Math.min(1, engineState.startupTime / ENGINE_CONSTANTS.STARTUP_DURATION);
+    engineState.startupProgress = normalizedSigmoid(linearProgress);
+
+    // If startup completed
+    if (engineState.startupTime >= ENGINE_CONSTANTS.STARTUP_DURATION) {
+      engineState.isStarting = false;
+      engineState.startupProgress = 1;
+    }
+
+    return engineState.startupProgress;
+  }
+
+  // Process shutdown sequence
+  if (engineState.isShuttingDown) {
+    engineState.shutdownTime += deltaTime;
+
+    // Calculate shutdown progress (inverse of startup - from 1 to 0)
+    const linearProgress = Math.min(1, engineState.shutdownTime / ENGINE_CONSTANTS.SHUTDOWN_DURATION);
+    engineState.shutdownProgress = 1 - normalizedSigmoid(linearProgress);
+
+    // If shutdown completed
+    if (engineState.shutdownTime >= ENGINE_CONSTANTS.SHUTDOWN_DURATION) {
+      engineState.isShuttingDown = false;
+      engineState.shutdownProgress = 0;
+      engineState.startupProgress = 0; // Reset startup progress too
+    }
+
+    return engineState.shutdownProgress;
+  }
+
+  // Not in startup or shutdown - return appropriate value
+  return isRunning ? 1 : 0;
+}
+
+/**
+ * Calculate target RPM based on control settings
+ */
+export function calculateTargetRPM(
+  fuelInjectionRate: number,
+  load: number,
+  isRunning: boolean
+): number {
+  if (!isRunning) return 0;
+
+  // Base RPM based on fuel rate
+  const baseRpm = ENGINE_CONSTANTS.IDLE_RPM +
+    (fuelInjectionRate / 100) * (ENGINE_CONSTANTS.RATED_RPM - ENGINE_CONSTANTS.IDLE_RPM);
+
+  // Load effect: high load tends to slow down engine slightly without governor action
+  const loadEffect = (load / 100) * 15;
+
+  engineState.targetRpm = Math.max(ENGINE_CONSTANTS.IDLE_RPM, baseRpm - loadEffect);
+  return engineState.targetRpm;
+}
+
+/**
+ * Calculate RPM with gradual changes based on physical properties
+ */
+export function calculateRPM(
+  currentRpm: number,
+  fuelInjectionRate: number,
+  load: number,
+  isRunning: boolean,
+  deltaTime: number
+): number {
+  // Process startup or shutdown sequence and get the appropriate factor
+  const transitionFactor = processStartup(isRunning, deltaTime);
+
+  // Engine is not running and not in transition - no RPM
+  if (!isRunning && !engineState.isShuttingDown) return 0;
+
+  // During startup sequence
+  if (engineState.isStarting) {
+    // Gradually ramp up to idle RPM using sigmoid curve - no random variations during startup
+    return ENGINE_CONSTANTS.IDLE_RPM * transitionFactor;
+  }
+
+  // During shutdown sequence
+  if (engineState.isShuttingDown) {
+    // Gradually ramp down from current RPM to zero - no random variations during shutdown
+    const targetShutdownRpm = Math.max(currentRpm, ENGINE_CONSTANTS.IDLE_RPM);
+    return targetShutdownRpm * transitionFactor;
+  }
+
+  // Normal operation after startup
+  // Get the target RPM from fuel settings
+  const targetRpm = calculateTargetRPM(fuelInjectionRate, load, isRunning);
+
+  // First-order response model based on engine inertia 
+  const rpmDifference = targetRpm - currentRpm;
+  const rpmChangeRate = rpmDifference / ENGINE_CONSTANTS.RPM_TIME_CONSTANT;
+  let newRpm = currentRpm + rpmChangeRate * deltaTime;
+
+  // Apply load resistance - heavier loads require more time to accelerate
+  const loadResistance = 1 + (load / 100) * 0.5;
+  if (rpmDifference > 0) {
+    // When accelerating, apply load resistance
+    newRpm = currentRpm + (rpmChangeRate / loadResistance) * deltaTime;
+  } else {
+    // When decelerating, apply slight boost due to engine braking
+    newRpm = currentRpm + rpmChangeRate * deltaTime * 1.2;
+  }
+
+  // Add small random variations (engine roughness) - only during normal operation
+  const roughness = (Math.random() - 0.5) * (Math.min(5, currentRpm / 50));
+  newRpm += roughness;
+
+  // Ensure RPM never goes below 0
+  return Math.max(0, newRpm);
+}
+
+/**
+ * Calculate true power output based on all physical factors
  */
 export function calculatePowerOutput(
   fuelInjectionRate: number,
   load: number,
-  engineTemperature: number,
+  temperature: number,
   generatorExcitation: number,
   maintenanceStatus: number,
-  timeSinceStart: number // Added parameter for startup dynamics
+  rpm: number
 ): number {
-  // --- Startup Ramp-up ---
-  // Engine power capability ramps up during the initial startup phase.
-  const startupFactor = Math.min(1, timeSinceStart / STARTUP_DURATION_SECONDS); // Goes from 0 to 1 during startup duration
+  // A stationary engine produces no power
+  if (rpm < ENGINE_CONSTANTS.IDLE_RPM * 0.9) return 0;
 
-  // --- Mechanical Power Available ---
-  const fuelFactor = fuelInjectionRate / 100;
-  const maintenanceFactor = maintenanceStatus / 100 * (1 - MAINTENANCE_POWER_FACTOR_BASE) + MAINTENANCE_POWER_FACTOR_BASE;
-  const availableMechanicalPower = fuelFactor * MAX_MECHANICAL_POWER_MW * maintenanceFactor * startupFactor; // Apply startup factor here
+  // Base power calculation based on fuel, load and max capacity
+  const normalizedRpm = Math.min(rpm / ENGINE_CONSTANTS.RATED_RPM, 1.05);
+  const basePower = (fuelInjectionRate / 100) * (load / 100) * ENGINE_CONSTANTS.MAX_POWER;
 
-  // --- Generator Conversion ---
-  const excitationFactor = generatorExcitation / 100 * GENERATOR_EFFICIENCY_VARIATION + GENERATOR_EFFICIENCY_BASE;
-  const electricalOutputCapability = availableMechanicalPower * excitationFactor;
+  // RPM efficiency curve - engines are most efficient near rated RPM
+  const rpmEfficiency = 1 - 0.5 * Math.pow((normalizedRpm - 1), 2);
 
-  // --- Load Demand ---
-  const demandedElectricalPower = (load / 100) * DESIGN_POWER_MW;
+  // Temperature efficiency factor - cold engines are less efficient
+  let tempFactor = 1.0;
+  if (temperature < 60) {
+    // Cold engine inefficiency
+    tempFactor = 0.7 + (temperature - 40) / 80;
+  } else if (temperature > 95) {
+    // Overheating engine inefficiency
+    tempFactor = 1.0 - (temperature - 95) / 25;
+  }
 
-  // --- Temperature Derating ---
-  const tempDeratingThreshold = 85;
-  const maxTempDerating = 0.2;
-  const tempDerating = Math.max(0, engineTemperature - tempDeratingThreshold) / (100 - tempDeratingThreshold) * maxTempDerating;
-  const finalElectricalOutputCapability = electricalOutputCapability * (1 - tempDerating);
+  // Generator excitation affects power output (0.7-1.1 range)
+  const excitationFactor = 0.7 + (generatorExcitation / 100) * 0.4;
 
-  // --- Final Power Output ---
-  let powerOutput = Math.max(0, Math.min(finalElectricalOutputCapability, demandedElectricalPower));
+  // Maintenance factor - poorly maintained engines lose power
+  const maintenanceFactor = 0.7 + (maintenanceStatus / 100) * 0.3;
 
-  // --- Add Random Noise ---
-  powerOutput = addNoise(powerOutput, RANDOM_NOISE_POWER_MW);
+  // Apply all factors
+  const calculatedPower = basePower * rpmEfficiency * tempFactor *
+    excitationFactor * maintenanceFactor;
 
-  // Ensure output is not negative after adding noise
-  return Math.max(0, powerOutput);
+  // Add small random variations - but not during startup/shutdown transitions
+  const isInTransition = engineState.isStarting || engineState.isShuttingDown;
+  const variationFactor = isInTransition ? 1.0 : (0.99 + Math.random() * 0.02);
+
+  // Add slight oscillations - but not during transitions
+  const oscillationFactor = isInTransition ? 1.0 : (1 + Math.sin(Date.now() / 5000) * 0.01);
+
+  return Math.max(0, calculatedPower * variationFactor * oscillationFactor);
 }
 
 /**
- * Calculates the engine's fuel consumption rate.
- * Simplified model proportional to fuel injection rate.
- * (No dynamic or noise added here for simplicity and consistency)
- * @param fuelInjectionRate - Fuel rate (0-100 scale)
- * @param load - Electrical load demand (0-100 scale) // Not used in calculation
- * @param efficiency - Current engine efficiency (percentage 0-100) // Not used in calculation
- * @returns Fuel consumption rate (arbitrary scaled units)
+ * Calculate fuel consumption in liters per hour
  */
 export function calculateFuelConsumption(
   fuelInjectionRate: number,
+  rpm: number,
   load: number,
   efficiency: number
 ): number {
-  // Max fuel consumption rate (scaled) at 100% fuel injection.
-  const MAX_SCALED_FUEL_CONSUMPTION = 10000; // Arbitrary max scaled units
+  // No fuel consumption when engine is stopped
+  if (rpm < 10) return 0;
 
-  const fuelRateFactor = fuelInjectionRate / 100;
-  const fuelConsumption = fuelRateFactor * MAX_SCALED_FUEL_CONSUMPTION;
+  // Base consumption scaled by engine size
+  const rpmFactor = rpm / ENGINE_CONSTANTS.RATED_RPM;
+  const baseFuelFlow = (fuelInjectionRate / 100) * ENGINE_CONSTANTS.NOMINAL_FUEL_RATE;
 
-  return fuelConsumption;
+  // Efficiency adjustment - more efficient engines use less fuel
+  const efficiencyAdjustment = 1.0 - ((efficiency || 1) / 100) * 0.2;
+
+  // RPM adjustment - less efficient at idle and over-speed
+  const rpmEfficiency = 1 + Math.pow((rpmFactor - 0.9), 2) * 0.3;
+
+  // Calculate actual consumption
+  const actualConsumption = baseFuelFlow * rpmEfficiency * efficiencyAdjustment;
+
+  // Add small random variations - but not during startup/shutdown
+  const isInTransition = engineState.isStarting || engineState.isShuttingDown;
+  const randomFactor = isInTransition ? 1.0 : (0.98 + Math.random() * 0.04);
+
+  return actualConsumption * randomFactor;
 }
 
-/**
- * Calculates the change in engine temperature over time.
- * Models temperature as a dynamic system (first-order approximation) with noise.
- * @param engineTemperature - Current engine temperature (degrees C)
- * @param fuelInjectionRate - Fuel rate (0-100 scale)
- * @param coolingSystemPower - Cooling power (0-100 scale)
- * @param load - Electrical load demand (0-100 scale)
- * @param deltaTime - Time elapsed since last update (seconds)
- * @returns New engine temperature (degrees C)
- */
 export function calculateTemperature(
-  engineTemperature: number,
-  fuelInjectionRate: number,
-  coolingSystemPower: number,
-  load: number,
-  deltaTime: number
+  currentTemperature: number,
+  fuelInjectionRate: number, // %
+  coolingSystemPower: number, // % of max cooling capacity used
+  load: number, // %
+  rpm: number,
+  isRunning: boolean,
+  deltaTime: number // seconds
 ): number {
-  // Heat generation only occurs when fuel is injected.
-  const heatGenerated = (fuelInjectionRate / 100) * HEAT_GENERATION_PER_FUEL + (load / 100) * HEAT_GENERATION_PER_LOAD;
+  if (!isRunning && !engineState.isShuttingDown) {
+    // If engine is off and not shutting down, gradually cool to ambient
+    const coolingToAmbientRate = (ENGINE_CONSTANTS.AMBIENT_TEMP - currentTemperature) * 0.001; // Slow cooling
+    return Math.max(ENGINE_CONSTANTS.AMBIENT_TEMP, currentTemperature + coolingToAmbientRate * deltaTime);
+  }
 
-  // Heat removal by cooling system.
-  const heatRemovedByCooling = (coolingSystemPower / 100) * COOLING_EFFECTIVENESS;
+  // 1. Heat Generation (kW)
+  // Heat generated is proportional to fuel consumed, which relates to power output and efficiency.
+  // A simpler model: proportional to fuel rate, load, and RPM, scaled to MAX_HEAT_GENERATION_RATE.
+  const rpmFactor = Math.min(1, rpm / ENGINE_CONSTANTS.RATED_RPM);
+  const loadFactor = load / 100;
+  const fuelFactor = fuelInjectionRate / 100;
+  // Consider that not all fuel energy becomes mechanical power; much is heat.
+  // If powerOutput is available, a more accurate heat generation = powerOutput * (1/efficiency - 1)
+  // For now, a simpler proportional model:
+  let heatGenerated_kW = 0;
+  if (rpm > ENGINE_CONSTANTS.IDLE_RPM * 0.5) { // Only generate significant heat if running above very low idle
+    heatGenerated_kW = ENGINE_CONSTANTS.MAX_HEAT_GENERATION_RATE * fuelFactor * loadFactor * rpmFactor * 0.7; // 0.7 is an adjustment factor
+    // Add a base heat generation for idling
+    if (loadFactor < 0.1) { // If very low load (idle)
+      heatGenerated_kW += ENGINE_CONSTANTS.MAX_HEAT_GENERATION_RATE * fuelFactor * rpmFactor * 0.05;
+    }
+  }
 
-  // Natural heat loss to the environment.
-  const naturalHeatLoss = (engineTemperature - AMBIENT_TEMPERATURE_C) * NATURAL_COOLING_RATE;
 
-  // --- Net Heat Flow ---
-  const netHeatFlow = heatGenerated - heatRemovedByCooling - naturalHeatLoss;
+  // 2. Heat Dissipation by Cooling System (kW)
+  const coolingSystemEffectiveness = coolingSystemPower / 100;
+  // Cooling is more effective if the engine is hotter than ambient
+  const tempDiffEngineToAmbient = Math.max(0, currentTemperature - ENGINE_CONSTANTS.AMBIENT_TEMP);
+  // Make cooling effectiveness also dependent on temperature difference for realism
+  const coolingFactor = Math.min(1, tempDiffEngineToAmbient / (ENGINE_CONSTANTS.OPTIMAL_TEMP - ENGINE_CONSTANTS.AMBIENT_TEMP + 10)); // Becomes fully effective around optimal temp
+  const heatRemovedByCooling_kW = ENGINE_CONSTANTS.MAX_COOLING_POWER_RATE * coolingSystemEffectiveness * coolingFactor;
 
-  // --- Temperature Change Rate ---
-  let temperatureChangeRate = netHeatFlow / THERMAL_MASS_CAPACITY; // degrees C per second (scaled)
+  // 3. Heat Loss to Ambient (kW)
+  const heatLossToAmbient_kW = (currentTemperature - ENGINE_CONSTANTS.AMBIENT_TEMP) * ENGINE_CONSTANTS.AMBIENT_HEAT_TRANSFER_COEFFICIENT;
 
-  // --- Add Random Noise to the rate of change ---
-  temperatureChangeRate = addNoise(temperatureChangeRate, RANDOM_NOISE_TEMPERATURE_C);
+  // 4. Net Heat Power (kW)
+  const netHeatPower_kW = heatGenerated_kW - heatRemovedByCooling_kW - heatLossToAmbient_kW;
 
-  // --- Update Temperature ---
-  const newTemperature = engineTemperature + temperatureChangeRate * deltaTime;
+  // 5. Temperature Change (°C)
+  // delta_Temp = (NetHeatPower_kW * deltaTime_seconds) / ENGINE_THERMAL_MASS_kJ_per_C
+  const temperatureChange = (netHeatPower_kW * deltaTime) / ENGINE_CONSTANTS.ENGINE_THERMAL_MASS;
+  let newTemperature = currentTemperature + temperatureChange;
 
-  // Ensure temperature doesn't drop below ambient
-  return Math.max(AMBIENT_TEMPERATURE_C, newTemperature);
+  // Clamp temperature to a minimum of ambient
+  newTemperature = Math.max(ENGINE_CONSTANTS.AMBIENT_TEMP, newTemperature);
+  // Optional: Clamp to a maximum survivable temperature (e.g., 150°C) to prevent runaway
+  newTemperature = Math.min(150, newTemperature);
+
+
+  // No random variations during startup/shutdown for stability
+  if (engineState.isStarting || engineState.isShuttingDown) {
+    return newTemperature;
+  }
+
+  // Add small random variations for realism during normal operation
+  const randomFactor = (0.999 + Math.random() * 0.002);
+  return newTemperature * randomFactor;
 }
 
 /**
- * Calculates the current engine efficiency.
- * Incorporates random noise.
- * @param engineTemperature - Engine temperature (degrees C)
- * @param fuelInjectionRate - Fuel rate (0-100 scale) // Proxy for load point
- * @param load - Electrical load demand (0-100 scale) // Actual load point
- * @param maintenanceStatus - Maintenance status (0-100 scale)
- * @returns Efficiency (percentage 0-100)
+ * Get engine state information
+ */
+export function getEngineState() {
+  return {
+    isStarting: engineState.isStarting,
+    isShuttingDown: engineState.isShuttingDown,
+    startupProgress: engineState.startupProgress,
+    shutdownProgress: engineState.shutdownProgress,
+    targetRpm: engineState.targetRpm
+  };
+}
+
+/**
+ * Reset the engine state
+ */
+export function resetEngineState(): void {
+  engineState = {
+    startupProgress: 0,
+    startupTime: 0,
+    isStarting: false,
+    shutdownProgress: 0,
+    shutdownTime: 0,
+    isShuttingDown: false,
+    wasRunning: false,
+    targetRpm: 0,
+    lastTimestamp: 0
+  };
+}
+
+/**
+ * Calculate efficiency based on all operating parameters
  */
 export function calculateEfficiency(
-  engineTemperature: number,
+  temperature: number,
   fuelInjectionRate: number,
   load: number,
+  rpm: number,
   maintenanceStatus: number
 ): number {
-  // --- Base Efficiency ---
-  let efficiency = IDEAL_THERMAL_EFFICIENCY_PERCENT;
+  // Base efficiency for a modern diesel generator
+  let efficiency = 35; // Start at 35% baseline
 
-  // --- Penalties / Factors ---
-  const tempPenaltyThreshold = 90;
-  const tempPenaltyFactor = 1.0;
-  const tempPenalty = Math.max(0, engineTemperature - tempPenaltyThreshold) * tempPenaltyFactor;
-  efficiency -= tempPenalty;
+  // RPM factor - optimal efficiency near rated RPM
+  const rpmRatio = rpm / ENGINE_CONSTANTS.RATED_RPM;
+  const rpmFactor = 1.0 - 0.5 * Math.pow((rpmRatio - 1), 2);
 
-  const optimalLoad = 90;
-  const optimalFuel = 95;
-  const loadPenalty = Math.abs((load / 100) * 100 - optimalLoad) * 0.1;
-  const fuelPenalty = Math.abs((fuelInjectionRate / 100) * 100 - optimalFuel) * 0.1;
-  efficiency -= loadPenalty + fuelPenalty;
+  // Temperature factor - optimal temperature is around 85°C
+  const tempDelta = Math.abs(temperature - ENGINE_CONSTANTS.OPTIMAL_TEMP);
+  // Efficiency drops as temperature moves away from optimal
+  const tempFactor = 1.0 - Math.pow(tempDelta / 60, 2);
 
-  const maintenanceFactor = maintenanceStatus / 100 * (1 - MAINTENANCE_EFFICIENCY_FACTOR_BASE) + MAINTENANCE_EFFICIENCY_FACTOR_BASE;
-  efficiency *= maintenanceFactor;
+  // Fuel injection factor - optimal is around 75-85% for most diesel engines
+  let fuelFactor = 1.0;
+  if (fuelInjectionRate < 50) {
+    // Inefficient at low fuel rates (lean mixture)
+    fuelFactor = 0.8 + fuelInjectionRate / 150;
+  } else if (fuelInjectionRate > 90) {
+    // Inefficient at high fuel rates (rich mixture)
+    fuelFactor = 1.0 - (fuelInjectionRate - 90) / 70;
+  }
 
-  // --- Clamp Efficiency Before Noise ---
-  efficiency = Math.max(5, Math.min(IDEAL_THERMAL_EFFICIENCY_PERCENT, efficiency));
+  // Load factor - diesel engines are most efficient at 75-85% load
+  let loadFactor = 0.8;
+  if (load > 40 && load < 90) {
+    loadFactor = 0.8 + (load - 40) / 200;
+  } else if (load > 90) {
+    loadFactor = 1.0 - (load - 90) / 100;
+  }
 
-  // --- Add Random Noise ---
-  efficiency = addNoise(efficiency, RANDOM_NOISE_EFFICIENCY_PERCENT);
+  // Maintenance factor - poorly maintained engines lose efficiency
+  const maintenanceFactor = 0.7 + (maintenanceStatus / 100) * 0.3;
 
-  // --- Clamp Efficiency After Noise ---
-  return Math.max(5, Math.min(IDEAL_THERMAL_EFFICIENCY_PERCENT, efficiency)); // Re-clamp after noise
+  // If engine is just idling or at very low RPM, efficiency is always lower
+  if (rpmRatio < 0.5) {
+    return 20 * rpmRatio;
+  }
+
+  // Apply all factors to base efficiency
+  efficiency = 42 * rpmFactor * tempFactor * fuelFactor * loadFactor * maintenanceFactor;
+
+  // Add small random variations - but not during transitions
+  const isInTransition = engineState.isStarting || engineState.isShuttingDown;
+  const randomFactor = isInTransition ? 1.0 : (0.99 + Math.random() * 0.02);
+
+  // Clamp to realistic diesel efficiency range
+  return Math.max(20, Math.min(efficiency * randomFactor, 45));
 }
 
 /**
- * Calculates engine emissions.
- * Incorporates random noise.
- * @param fuelInjectionRate - Fuel rate (0-100 scale)
- * @param engineTemperature - Engine temperature (degrees C)
- * @param efficiency - Current engine efficiency (percentage 0-100)
- * @returns Object with emission levels (arbitrary scaled units)
+ * Calculate emissions based on operating parameters
  */
 export function calculateEmissions(
   fuelInjectionRate: number,
-  engineTemperature: number,
+  temperature: number,
+  rpm: number,
   efficiency: number
 ): { co2: number; nox: number; particulates: number } {
-  const fuelFactor = fuelInjectionRate / 100;
-  const efficiencyFactor = Math.max(0.1, efficiency) / 100; // Prevent issues if efficiency is very low
+  // CO2 emissions (g/kWh) - inversely proportional to efficiency
+  const efficiencyFactor = 42 / Math.max(20, efficiency);
+  const co2Base = 650 * efficiencyFactor;
 
-  // --- Base Emissions ---
-  const baseCO2 = fuelFactor * 1000;
-  const tempThresholdNOx = 70;
-  const tempEffectNOx = Math.max(0, engineTemperature - tempThresholdNOx) * 5;
-  const baseNOx = fuelFactor * 50 + tempEffectNOx;
-  const baseParticulates = fuelFactor * 20 + (100 - efficiency) * 2;
+  // Calculate NOx emissions (mg/Nm³)
+  // NOx increases with temperature and fuel rate
+  const tempFactor = Math.pow(temperature / ENGINE_CONSTANTS.OPTIMAL_TEMP, 1.5);
+  // NOx is highest at high temperatures and high loads
+  const noxBase = 600 * tempFactor * (0.5 + fuelInjectionRate / 200);
 
-  // --- Add Random Noise ---
-  const co2 = addNoise(baseCO2, RANDOM_NOISE_EMISSIONS_SCALED);
-  const nox = addNoise(baseNOx, RANDOM_NOISE_EMISSIONS_SCALED);
-  const particulates = addNoise(baseParticulates, RANDOM_NOISE_EMISSIONS_SCALED);
+  // Calculate particulate matter emissions (mg/Nm³)
+  // PM is worse at low temps and high fuel rates
+  const tempEffectOnPM = (temperature < 70) ?
+    (1.5 - temperature / 100) :
+    (0.5 + Math.pow((temperature - 85) / 50, 2));
+  const particulatesBase = 30 + (100 - efficiency) * 0.8 * tempEffectOnPM;
 
+  // Add small random variations - but not during transitions
+  const isInTransition = engineState.isStarting || engineState.isShuttingDown;
+  const randomFactor = isInTransition ? 1.0 : (0.96 + Math.random() * 0.08);
 
-  // Ensure emissions are not negative
+  // Special handling for startup/shutdown
+  if (isInTransition) {
+    // During startup/shutdown, emissions are higher
+    const transitionMultiplier = engineState.isStarting ?
+      (1 + (1 - engineState.startupProgress)) :
+      (1 + engineState.shutdownProgress);
+
+    return {
+      co2: co2Base * transitionMultiplier,
+      nox: Math.max(100, noxBase * transitionMultiplier * 0.8),
+      particulates: Math.max(10, particulatesBase * transitionMultiplier * 1.5), // Particulates especially high during transitions
+    };
+  }
+
+  // Normal operation emissions
   return {
-    co2: Math.max(0, co2),
-    nox: Math.max(0, nox),
-    particulates: Math.max(0, particulates),
+    co2: co2Base * randomFactor,
+    nox: Math.max(100, noxBase * randomFactor),
+    particulates: Math.max(10, particulatesBase * randomFactor),
   };
+}
+
+export function calculateFrequency(rpm: number): number {
+  // Standard formula: Frequency = (RPM × Number of Poles) / 120
+  // For a 50Hz system with 4 poles at RATED_RPM (e.g. 1500 for 50Hz, or 500 RPM with 12 poles for 50Hz)
+  // Let's assume ENGINE_CONSTANTS.RATED_RPM is the synchronous speed for 50Hz.
+  // If RATED_RPM = 500, then poles = (50 * 120) / 500 = 12 poles.
+  const poles = (50 * 120) / ENGINE_CONSTANTS.RATED_RPM; // Calculate poles needed for 50Hz at rated RPM
+  let calculatedFrequency = (rpm * poles) / 120;
+
+  // Apply Governor/AVR-like effect when close to rated RPM
+  const rpmRatio = rpm / ENGINE_CONSTANTS.RATED_RPM;
+
+  if (rpmRatio > 0.95 && rpmRatio < 1.05 && rpm > ENGINE_CONSTANTS.IDLE_RPM) {
+    // Strong frequency regulation near rated RPM (simulates governor action)
+    // Target 50Hz, allow slight deviation based on RPM ratio
+    calculatedFrequency = 50 + (rpmRatio - 1) * 2.5; // e.g. at 1.02 * RATED_RPM, freq = 50.05 Hz
+    calculatedFrequency = Math.max(47.5, Math.min(52.5, calculatedFrequency)); // Clamp within typical grid limits
+  } else if (rpm < ENGINE_CONSTANTS.IDLE_RPM * 0.8) {
+    calculatedFrequency = 0;
+  }
+
+
+  return calculatedFrequency;
+}
+
+export function calculateVoltage(rpm: number, excitation: number): number {
+  const baseVoltage = 11000; // Volts (e.g., 11kV)
+
+  if (rpm < ENGINE_CONSTANTS.IDLE_RPM * 0.7) return 0;
+
+  const rpmFactor = rpm / ENGINE_CONSTANTS.RATED_RPM;
+  // Excitation effect is non-linear and typically has a saturation point.
+  // Let's model it as a factor from 0.5 to 1.1 based on excitation percentage.
+  const excitationEffect = 0.5 + (excitation / 100) * 0.6; // Max 1.1 at 100% excitation
+
+  let voltage = baseVoltage * rpmFactor * excitationEffect;
+
+  // AVR (Automatic Voltage Regulation) effect simulation
+  if (rpmFactor > 0.95 && rpmFactor < 1.05 && rpm > ENGINE_CONSTANTS.IDLE_RPM) {
+    // Tighter voltage regulation around nominal operating point
+    // Voltage should be primarily controlled by excitation when RPM is stable
+    const targetVoltageFactor = 0.98 + (excitation / 100) * 0.04; // e.g. 1.0 at 50% excitation, 1.02 at 100%
+    voltage = baseVoltage * targetVoltageFactor;
+    voltage = Math.max(baseVoltage * 0.9, Math.min(baseVoltage * 1.1, voltage)); // Clamp
+  }
+
+  if (engineState.isStarting || engineState.isShuttingDown) {
+    const transitionProgress = engineState.isStarting ? engineState.startupProgress : (1 - engineState.shutdownProgress);
+    // Voltage builds up/down with transition, add some instability
+    const instabilityFactor = 1 - Math.pow(transitionProgress - 0.5, 2) * 0.2; // Max instability in middle of transition
+    const fluctuation = Math.sin(Date.now() / 150 + rpm / 100) * 0.02 * (1 - transitionProgress); // More fluctuation at start/end
+    return Math.max(0, voltage * transitionProgress * instabilityFactor * (1 + fluctuation));
+  }
+
+  return Math.max(0, voltage);
 }
