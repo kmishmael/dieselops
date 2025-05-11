@@ -1,54 +1,72 @@
-# React + TypeScript + Vite
+# DieselOps - Diesel Power Plant Simulator
+DieselOps is a comprehensive web-based simulator for a 50MW diesel power plant engine (1 of 10 for a total of 500MW Capacity), providing an interactive interface to visualize, control, and monitor diesel generator operation in real-time.
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> This project was intended for school purposes as part of a research section on the design of a 500MW diesel power plant.
 
-Currently, two official plugins are available:
+![](/assets/main-dashboard.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
+### 1. Real-time Engine Visualization
+Interactive animation of diesel engine components including pistons, generator, and cooling systems
 
-## Expanding the ESLint configuration
+### 2. Dynamic Circuit Diagram
+Single line diagram showing power flow from diesel engine through generator and transformer to load
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 3. Realistic Parameter Simulation
+Accurate modeling of temperature, efficiency, emissions, voltage, and frequency
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### 4. Multiple Control Options
+Manual controls for fuel injection, cooling, excitation, and load
+
+### 5. Automatic PID-based control systems
+Advanced cascade control for complex parameter relationships
+
+### 6. Monitoring Dashboards
+Real-time graphs showing power output, temperature, and efficiency trends
+
+### 7. Emergency Mode
+Simulate emergency situations and test failsafe mechanisms
+
+### 8. System Status Tracking
+Comprehensive health monitoring with maintenance status indicators
+
+## Tech Stack
+- React 19 with TypeScript for UI components
+- Tailwind CSS for styling
+- Radix UI primitives for accessible components
+- Canvas API for visualizations (circuit diagram, power graphs)
+- Custom animation for engine visualization
+- Zustand state management solution for simulation logic
+
+## Getting Started
+Prerequisites
+- Node.js (v20.x LTS or higher)
+- npm, yarn or pnpm
+
+### Installation
+#### Install dependencies using your package manager of choice
+```bash
+npm install
+```
+> use `--legacy-peer-deps` in case of peer dependencies conflict.
+
+#### Start the development server
+```bash
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Usage
+The simulator provides a comprehensive interface to:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. Start/Stop the diesel engine
+2. Adjust parameters like fuel injection rate, cooling power, and generator excitation
+3. Monitor real-time data on power output, temperature, efficiency, etc.
+4. Test automatic control systems with PID controllers
+5. Implement cascade control strategies for advanced parameter management
+6. Visualize power flow through the single-line diagram
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+#### Engine Visualization with gauge readings
+![](assets/engine-visualization.png)
+
+#### Automatic Control System
+![](assets/automatic-control-system.png)
