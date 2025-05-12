@@ -1,21 +1,21 @@
 // System Constants
 export const ENGINE_CONSTANTS = {
-  MAX_POWER: 50, // Maximum power output in MW
+  MAX_POWER: 25, // Maximum power output in MW
   RATED_RPM: 500, // Rated RPM for large industrial diesel engine
   IDLE_RPM: 200, // Idle speed RPM
   AMBIENT_TEMP: 25, // Ambient temperature in °C
   OPTIMAL_TEMP: 85, // Optimal operating temperature in °C
   THERMAL_DANGER: 98, // Temperature danger threshold
   SPECIFIC_HEAT_CAPACITY_AIR: 1.005, // kJ/kgK (approx for exhaust gases)
-  ENGINE_THERMAL_MASS: 75000, // kJ/°C (effective thermal mass of the engine block, fluids etc.) - Increased for slower, more realistic changes
-  MAX_HEAT_GENERATION_RATE: 70000, // kW (thermal power at max load/rpm, related to MAX_POWER * (1/efficiency - 1))
-  MAX_COOLING_POWER_RATE: 80000, // kW (max heat dissipation capability of the cooling system)
+  ENGINE_THERMAL_MASS: 35700, // kJ/°C (effective thermal mass of the engine block, fluids etc.) - Increased for slower, more realistic changes
+  MAX_HEAT_GENERATION_RATE: 35000, // kW (thermal power at max load/rpm, related to MAX_POWER * (1/efficiency - 1))
+  MAX_COOLING_POWER_RATE: 40000, // kW (max heat dissipation capability of the cooling system)
   AMBIENT_HEAT_TRANSFER_COEFFICIENT: 0.5, // kW/°C (heat loss to ambient)
-  NOMINAL_FUEL_RATE: 170, // Nominal fuel consumption at rated power (L/hour)
-  MAX_TORQUE_RPM: 450, // RPM at max torque
-  MOMENT_OF_INERTIA: 35000, // Engine moment of inertia in kg·m² (large flywheel effect)
+  NOMINAL_FUEL_RATE: 85, // Nominal fuel consumption at rated power (L/hour)
+  MAX_TORQUE_RPM: 250, // RPM at max torque
+  MOMENT_OF_INERTIA: 17500, // Engine moment of inertia in kg·m² (large flywheel effect)
   RPM_TIME_CONSTANT: 8, // Time constant for RPM changes in seconds
-  TEMPERATURE_TIME_CONSTANT: 15, // Time constant for temperature changes in seconds
+  TEMPERATURE_TIME_CONSTANT: 8, // Time constant for temperature changes in seconds
   STARTUP_DURATION: 0, // Duration for engine to reach stable idle in seconds
   SHUTDOWN_DURATION: 5, // Duration for engine to cool down in seconds 
 };
